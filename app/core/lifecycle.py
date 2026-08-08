@@ -32,31 +32,40 @@ class Application:
         self.scheduler = AsyncIOScheduler(timezone=settings.timezone)
         self._shutdown_event = asyncio.Event()
         self._started = False
+        self._shutdown_complete = True
 
     async def run(self) -> None:
         self._install_signal_handlers()
-        await self.startup()
-        bot_task = asyncio.create_task(self.bot.start_polling(), name="admin-bot-polling")
+        bot_task: asyncio.Task[None] | None = None
         try:
+            await self.startup()
+            bot_task = asyncio.create_task(self._run_bot(), name="admin-bot-polling")
             await self._shutdown_event.wait()
         finally:
-            bot_task.cancel()
-            await asyncio.gather(bot_task, return_exceptions=True)
+            if bot_task is not None:
+                bot_task.cancel()
+                await asyncio.gather(bot_task, return_exceptions=True)
             await self.shutdown()
 
     async def startup(self) -> None:
         logger.info("Application startup sequence beginning")
-        await self.database.initialize()
-        self.status_service.database_connected = True
-        await self.telethon.connect()
-        self.status_service.telethon_connected = self.telethon.is_connected()
-        self.status_service.telethon_authorized = self.telethon.is_authorized()
-        await self.listener.start()
-        self._started = True
-        logger.info("Application startup sequence complete")
+        self._shutdown_complete = False
+        try:
+            await self.database.initialize()
+            self.status_service.database_connected = True
+            await self.telethon.connect()
+            self.status_service.telethon_connected = self.telethon.is_connected()
+            self.status_service.telethon_authorized = self.telethon.is_authorized()
+            await self.listener.start()
+            self._started = True
+            logger.info("Application startup sequence complete")
+        except Exception:
+            logger.exception("Application startup failed")
+            await self.shutdown()
+            raise
 
     async def shutdown(self) -> None:
-        if not self._started and not self.database.initialized:
+        if self._shutdown_complete:
             return
         logger.info("Application shutdown sequence beginning")
         await self.listener.stop()
@@ -67,10 +76,20 @@ class Application:
         await self.database.close()
         self.status_service.database_connected = False
         self._started = False
+        self._shutdown_complete = True
         logger.info("Application shutdown sequence complete")
 
     def request_shutdown(self) -> None:
         self._shutdown_event.set()
+
+    async def _run_bot(self) -> None:
+        try:
+            await self.bot.start_polling()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Admin bot polling failed")
+            self.request_shutdown()
 
     def _install_signal_handlers(self) -> None:
         loop = asyncio.get_running_loop()

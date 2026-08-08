@@ -1,4 +1,4 @@
-# Telegram Content Reposter Bot
+# PostFlow Bot
 
 Phase 0 is the foundation for a Telegram content reposting system. It establishes
 the boundaries between an authorized Telegram user client, an administrator bot,
@@ -79,15 +79,15 @@ Set these required variables:
 ```dotenv
 BOT_TOKEN=your-bot-token
 API_ID=123456
-API_HASH=your-api-hash
-TELEGRAM_SESSION=data/telethon/reposter
+API_HASH=your-32-character-api-hash
+TELEGRAM_SESSION=data/telethon/postflow
 ADMIN_USER_IDS=123456789,987654321
 ```
 
 Optional values:
 
 ```dotenv
-DATABASE_URL=sqlite+aiosqlite:///./data/reposter.db
+DATABASE_URL=sqlite+aiosqlite:///./data/postflow.db
 LOG_LEVEL=INFO
 TIMEZONE=UTC
 ```
@@ -133,7 +133,7 @@ Every admin bot message and callback is checked against `ADMIN_USER_IDS`.
 
 - Authorized users can access `/start`, `/status`, `/help`, and the foundation
   keyboard.
-- Unauthorized users receive `⛔ Access denied.`.
+- Unauthorized users receive `Access denied.`.
 - Unauthorized users never receive the admin keyboard or feature responses.
 
 The database does not store bot tokens, API hashes, sessions, or other secrets.
@@ -144,7 +144,7 @@ The database does not store bot tokens, API hashes, sessions, or other secrets.
 - `/status` — shows bot, database, Telethon, authorization, and listener state.
 - `/help` — lists available commands and explains Phase 0 limitations.
 
-The Source Channels, Target Channels, Settings, and History buttons currently
+The Source Channels, Target Channels, Routing Rules, Settings, and History buttons currently
 return:
 
 > 🚧 This feature will be available in the next phase.
@@ -263,7 +263,7 @@ your numeric Telegram user ID appears in `ADMIN_USER_IDS`.
 ### Database errors
 
 Check that the process can create the directory containing the SQLite file.
-The default location is `data/reposter.db`. For a later PostgreSQL deployment,
+The default location is `data/postflow.db`. For a later PostgreSQL deployment,
 replace `DATABASE_URL` with a compatible SQLAlchemy async URL.
 
 ## Future roadmap

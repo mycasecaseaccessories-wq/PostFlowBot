@@ -1,4 +1,4 @@
-# Telegram Content Reposter Bot
+# PostFlow Bot
 
 Phase 0 foundation for an async Telegram channel monitoring and reposting system.
 

@@ -1,1 +1,1 @@
-- [Telegram Phase 0](phase-0-telegram-foundation.md) — keep tests offline and production startup secret-safe; defer publishing and OTP prompts.
+- [PostFlow Phase 0](phase-0-telegram-foundation.md) — keep tests offline and startup secret-safe; defer publishing and OTP prompts.

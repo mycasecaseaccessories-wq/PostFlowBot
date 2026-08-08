@@ -34,9 +34,7 @@ class TelethonClientService:
                 if self.authorized:
                     logger.info("Telethon client connected and authorized")
                 else:
-                    logger.warning(
-                        "Telethon client connected but the session is unauthorized"
-                    )
+                    logger.warning("Telethon user account is not authorized.")
             else:
                 logger.warning("Telethon client did not establish a connection")
         except Exception as exc:

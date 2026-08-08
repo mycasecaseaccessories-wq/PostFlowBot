@@ -1,0 +1,995 @@
+You are a senior Python Telegram automation engineer.
+
+PROJECT NAME:
+PostFlow Bot
+
+PROJECT TYPE:
+Telegram Channel Content Reposting & Automation System
+
+CURRENT PHASE:
+PHASE 0 — FOUNDATION & TELEGRAM CONNECTION
+
+==================================================
+PROJECT GOAL
+==================================================
+
+Build the production-ready foundation of PostFlow Bot.
+
+The final application will monitor Telegram channels that the authorized Telegram USER ACCOUNT has access to, process channel content, optionally clean configured attribution/usernames/links, and publish the processed content to configured destination channels.
+
+The system will have TWO separate Telegram connections:
+
+1. TELETHON USER ACCOUNT
+2. TELEGRAM ADMIN BOT
+
+==================================================
+IMPORTANT TELEGRAM ARCHITECTURE
+==================================================
+
+TELETHON USER ACCOUNT:
+
+Telethon must connect using:
+
+- API_ID
+- API_HASH
+- TELEGRAM_SESSION
+
+This connection represents the authorized Telegram USER ACCOUNT.
+
+It will eventually be responsible for:
+
+- Monitoring source channels
+- Reading channel messages
+- Resolving channels
+- Processing incoming content
+- Publishing content to destination channels
+
+Do NOT use the Bot Token for the Telethon user connection.
+
+--------------------------------------------------
+
+TELEGRAM ADMIN BOT:
+
+The Admin Bot must connect using:
+
+- BOT_TOKEN
+
+It will be responsible for:
+
+- Admin control panel
+- Source channel management
+- Target channel management
+- Routing configuration
+- Settings
+- History
+- System status
+
+Do NOT use API_HASH as the Bot Token.
+
+==================================================
+TELEGRAM CONNECTION ARCHITECTURE
+==================================================
+
+                    TELEGRAM
+                       |
+             +---------+---------+
+             |                   |
+             v                   v
+      TELETHON CLIENT       ADMIN BOT
+             |                   |
+     API_ID + API_HASH       BOT_TOKEN
+     + USER SESSION               |
+             |                   |
+             v                   v
+     Telegram User          Admin Control
+        Account                  Panel
+             |
+             v
+      Source Channels
+
+==================================================
+TECH STACK
+==================================================
+
+Use:
+
+- Python 3.11+
+- Telethon
+- aiogram 3.x
+- SQLAlchemy 2.x
+- aiosqlite
+- APScheduler
+- python-dotenv
+
+Database:
+
+SQLite for Phase 0.
+
+Design the database layer so it can later support PostgreSQL.
+
+Use async architecture.
+
+==================================================
+PHASE 0 SCOPE
+==================================================
+
+Implement ONLY:
+
+1. Project structure
+2. Environment configuration
+3. Configuration validation
+4. Telegram Bot connection
+5. Telethon User Account connection
+6. Telethon session management
+7. Database foundation
+8. Admin authentication
+9. Admin Bot foundation
+10. Telethon client service
+11. Listener foundation
+12. Application lifecycle
+13. Logging
+14. Error handling
+15. System status
+16. Basic tests
+17. README
+
+DO NOT implement the full reposting engine yet.
+
+==================================================
+PROJECT STRUCTURE
+==================================================
+
+Create a clean modular project:
+
+postflow-bot/
+|
++-- app/
+|   |
+|   +-- __init__.py
+|   |
+|   +-- config/
+|   |   +-- __init__.py
+|   |   +-- settings.py
+|   |
+|   +-- database/
+|   |   +-- __init__.py
+|   |   +-- database.py
+|   |   +-- models.py
+|   |   +-- repositories/
+|   |
+|   +-- bot/
+|   |   +-- __init__.py
+|   |   +-- bot.py
+|   |   +-- handlers/
+|   |   +-- keyboards/
+|   |   +-- filters/
+|   |
+|   +-- telegram/
+|   |   +-- __init__.py
+|   |   +-- client.py
+|   |   +-- session.py
+|   |   +-- listener.py
+|   |   +-- publisher.py
+|   |
+|   +-- services/
+|   |   +-- __init__.py
+|   |   +-- channel_service.py
+|   |   +-- repost_service.py
+|   |   +-- cleaner_service.py
+|   |   +-- history_service.py
+|   |
+|   +-- core/
+|   |   +-- __init__.py
+|   |   +-- lifecycle.py
+|   |   +-- exceptions.py
+|   |   +-- logger.py
+|   |
+|   +-- utils/
+|       +-- __init__.py
+|       +-- helpers.py
+|
++-- tests/
+|   +-- test_config.py
+|   +-- test_database.py
+|   +-- test_auth.py
+|   +-- test_telegram_config.py
+|
++-- data/
++-- logs/
++-- main.py
++-- requirements.txt
++-- .env.example
++-- .gitignore
++-- README.md
+
+Do not create a giant single-file application.
+
+==================================================
+ENVIRONMENT VARIABLES
+==================================================
+
+Create .env.example with:
+
+# Telegram Admin Bot
+BOT_TOKEN=
+
+# Telegram User Account / Telethon
+API_ID=
+API_HASH=
+TELEGRAM_SESSION=
+
+# Admin Telegram User IDs
+ADMIN_USER_IDS=
+
+# Database
+DATABASE_URL=sqlite+aiosqlite:///./data/postflow.db
+
+# Logging
+LOG_LEVEL=INFO
+
+# Optional timezone
+TIMEZONE=UTC
+
+==================================================
+TELEGRAM API CREDENTIALS
+==================================================
+
+API_ID and API_HASH are Telegram API application credentials.
+
+The application must NOT hard-code them.
+
+Load them from environment variables.
+
+Example:
+
+API_ID=12345678
+API_HASH=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Never log API_HASH.
+
+==================================================
+TELEGRAM USER SESSION
+==================================================
+
+Use Telethon User Account authentication.
+
+The application must support a persistent Telethon session.
+
+Use:
+
+TELEGRAM_SESSION
+
+as the session configuration.
+
+The implementation must support either:
+
+1. A session file/name
+OR
+2. A Telethon StringSession
+
+Choose one clear and secure approach for Phase 0 and document it.
+
+Prefer a secure session approach that works well for deployment.
+
+IMPORTANT:
+
+The Telegram session is highly sensitive.
+
+Never print it.
+
+Never log it.
+
+Never commit it to Git.
+
+Add relevant session files to .gitignore.
+
+==================================================
+TELETHON LOGIN FLOW
+==================================================
+
+Implement a safe first-time authentication flow.
+
+When the Telethon session is not authorized:
+
+The system must clearly indicate:
+
+"Telethon user account is not authorized."
+
+Do not repeatedly request OTP during every application startup.
+
+Do not automatically send OTP requests in a restart loop.
+
+Provide a documented setup process in README for creating the session.
+
+The normal production startup should reuse the existing authorized session.
+
+If 2FA is enabled on the Telegram account, the setup documentation must explain that the Telegram password may be required during initial authentication.
+
+==================================================
+TELETHON CLIENT SERVICE
+==================================================
+
+Create:
+
+TelethonClientService
+
+Responsibilities:
+
+- Initialize Telethon client
+- Load API_ID
+- Load API_HASH
+- Load session
+- Connect
+- Disconnect
+- Check connection
+- Check authorization
+- Return client instance
+
+Methods:
+
+connect()
+disconnect()
+is_connected()
+is_authorized()
+get_client()
+
+Do not initialize Telethon in multiple modules.
+
+Only one shared Telethon client should exist.
+
+==================================================
+TELEGRAM ADMIN BOT
+==================================================
+
+Use aiogram 3.x.
+
+Load:
+
+BOT_TOKEN
+
+from environment variables.
+
+Implement:
+
+/start
+/status
+/help
+
+Admin Bot must use the Bot Token.
+
+It must NOT use:
+
+API_HASH
+API_ID
+TELEGRAM_SESSION
+
+for bot authentication.
+
+==================================================
+ADMIN AUTHENTICATION
+==================================================
+
+Only Telegram user IDs listed in:
+
+ADMIN_USER_IDS
+
+may access the Admin Bot.
+
+Support multiple admin IDs.
+
+Example:
+
+ADMIN_USER_IDS=123456789,987654321
+
+Unauthorized users must receive:
+
+"Access denied."
+
+Do not expose admin menus to unauthorized users.
+
+Validate permissions for both:
+
+- message handlers
+- callback query handlers
+
+Do not trust callback data alone.
+
+==================================================
+ADMIN MAIN MENU
+==================================================
+
+/start should display:
+
+PostFlow Bot
+
+System Status
+
+Admin Bot: Online
+Telegram User: Connected / Disconnected
+Database: Connected
+Listener: Running / Stopped
+
+Buttons:
+
+Source Channels
+Target Channels
+Routing Rules
+Settings
+History
+System Status
+
+For Phase 0:
+
+Source Channels
+Target Channels
+Routing Rules
+History
+
+may show:
+
+"This feature will be available in the next phase."
+
+Do not implement those features yet.
+
+==================================================
+STATUS COMMAND
+==================================================
+
+Implement:
+
+/status
+
+Display:
+
+PostFlow System Status
+
+Admin Bot:
+Online
+
+Database:
+Connected
+
+Telethon:
+Connected / Disconnected
+
+Telethon Authorization:
+Authorized / Unauthorized
+
+Listener:
+Running / Stopped
+
+Do not expose:
+
+API_HASH
+BOT_TOKEN
+Session String
+Phone number
+Private credentials
+
+==================================================
+DATABASE FOUNDATION
+==================================================
+
+Use SQLAlchemy 2.x async.
+
+Create:
+
+Admin
+SourceChannel
+TargetChannel
+RepostRule
+RepostHistory
+SystemSetting
+
+Admin fields:
+
+- id
+- telegram_user_id
+- is_active
+- created_at
+- updated_at
+
+SourceChannel fields:
+
+- id
+- telegram_chat_id
+- username
+- title
+- is_active
+- created_at
+- updated_at
+
+TargetChannel fields:
+
+- id
+- telegram_chat_id
+- username
+- title
+- is_active
+- created_at
+- updated_at
+
+RepostRule fields:
+
+- id
+- source_channel_id
+- target_channel_id
+- is_active
+- remove_usernames
+- remove_links
+- remove_keywords
+- delay_seconds
+- created_at
+- updated_at
+
+RepostHistory fields:
+
+- id
+- source_channel_id
+- target_channel_id
+- source_message_id
+- target_message_id
+- status
+- error_message
+- created_at
+
+SystemSetting fields:
+
+- id
+- key
+- value
+- updated_at
+
+Create proper indexes and relationships.
+
+Create a uniqueness strategy for:
+
+source_channel_id + target_channel_id + source_message_id
+
+so duplicate processing can be prevented later.
+
+==================================================
+DATABASE INITIALIZATION
+==================================================
+
+On startup:
+
+1. Create data directory if necessary.
+2. Connect to database.
+3. Create required tables.
+4. Verify database connectivity.
+
+Do not delete existing data during startup.
+
+==================================================
+MESSAGE LISTENER FOUNDATION
+==================================================
+
+Create:
+
+MessageListenerService
+
+The architecture must support:
+
+- NewMessage
+- MessageEdited
+- MessageDeleted
+
+For Phase 0:
+
+Only establish the listener.
+
+Do not automatically repost messages.
+
+If an event is received, log a safe message such as:
+
+"Telegram message event detected."
+
+Do not log private message content unnecessarily.
+
+==================================================
+CONTENT PROCESSING FOUNDATION
+==================================================
+
+Create service abstractions:
+
+ContentProcessor
+ContentCleaner
+DuplicateChecker
+Publisher
+
+Future flow:
+
+Incoming Message
+      |
+      v
+ContentProcessor
+      |
+      v
+ContentCleaner
+      |
+      v
+DuplicateChecker
+      |
+      v
+Publisher
+
+Phase 0 only requires the architecture/interfaces.
+
+Do NOT implement:
+
+- username removal
+- link removal
+- keyword filtering
+- caption rewriting
+- media processing
+
+Those belong to later phases.
+
+==================================================
+PUBLISHER FOUNDATION
+==================================================
+
+Create:
+
+TelegramPublisher
+
+Prepare the architecture for future support of:
+
+- Text
+- Photo
+- Video
+- Document
+- Audio
+- Media Groups
+
+For Phase 0:
+
+Do not publish incoming messages automatically.
+
+==================================================
+APPLICATION STARTUP
+==================================================
+
+Startup sequence:
+
+1. Load .env
+2. Validate configuration
+3. Initialize logging
+4. Initialize database
+5. Initialize Telethon Client
+6. Connect Telethon
+7. Check Telethon authorization
+8. Initialize Admin Bot
+9. Register handlers
+10. Initialize Listener
+11. Start Listener
+12. Start Admin Bot polling
+
+The application must clearly report which component failed.
+
+==================================================
+APPLICATION SHUTDOWN
+==================================================
+
+Handle:
+
+SIGINT
+SIGTERM
+
+Shutdown sequence:
+
+1. Stop listener
+2. Stop scheduler if initialized
+3. Stop bot polling
+4. Disconnect Telethon
+5. Close database
+6. Flush logs
+7. Exit cleanly
+
+The application must not leave hanging connections.
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Handle gracefully:
+
+- Invalid API_ID
+- Invalid API_HASH
+- Invalid BOT_TOKEN
+- Unauthorized Telethon session
+- Network errors
+- Telegram API errors
+- FloodWait
+- Database connection errors
+- Invalid admin configuration
+
+Do not expose raw stack traces to Telegram users.
+
+Log technical details server-side.
+
+==================================================
+FLOODWAIT FOUNDATION
+==================================================
+
+Prepare the architecture for Telegram FloodWait handling.
+
+Do NOT implement aggressive automatic retries.
+
+If FloodWait occurs:
+
+- Log the event
+- Avoid crashing the entire application
+- Allow the service to recover safely
+
+==================================================
+LOGGING
+==================================================
+
+Create centralized logging.
+
+Log:
+
+INFO:
+- Startup
+- Shutdown
+- Database initialized
+- Admin Bot connected
+- Telethon connected
+- Telethon authorization status
+- Listener started
+
+WARNING:
+- Telethon unauthorized
+- Temporary network issue
+- FloodWait
+
+ERROR:
+- Database errors
+- Telegram API errors
+- Unexpected service failures
+
+NEVER LOG:
+
+- BOT_TOKEN
+- API_HASH
+- TELEGRAM_SESSION
+- OTP codes
+- 2FA passwords
+
+==================================================
+SECURITY
+==================================================
+
+Security requirements:
+
+- Secrets only in environment variables
+- .env in .gitignore
+- Session files in .gitignore
+- Never print credentials
+- Never expose credentials through /status
+- Admin-only access
+- Validate all callback permissions
+- Do not store unnecessary credentials in database
+
+==================================================
+REQUIREMENTS.TXT
+==================================================
+
+Include appropriate dependencies for:
+
+- aiogram
+- telethon
+- sqlalchemy
+- aiosqlite
+- apscheduler
+- python-dotenv
+- pytest
+- pytest-asyncio
+
+Use compatible stable versions.
+
+==================================================
+README
+==================================================
+
+Create a complete README.
+
+Include:
+
+1. What is PostFlow Bot?
+2. Architecture
+3. Telegram Bot vs Telethon User Account
+4. Requirements
+5. How to create Telegram Bot
+6. How to obtain API_ID
+7. How to obtain API_HASH
+8. How to create Telethon Session
+9. How to configure .env
+10. How to start the application
+11. Admin setup
+12. Security warnings
+13. Project structure
+14. Phase 0 features
+15. Phase 0 limitations
+16. Future roadmap
+17. Troubleshooting
+
+Clearly explain:
+
+BOT_TOKEN
+=
+Telegram Admin Bot authentication.
+
+API_ID + API_HASH + TELEGRAM_SESSION
+=
+Telethon User Account authentication.
+
+==================================================
+TESTING
+==================================================
+
+Create tests for:
+
+1. Environment configuration
+2. Missing BOT_TOKEN
+3. Missing API_ID
+4. Missing API_HASH
+5. Missing TELEGRAM_SESSION
+6. Admin authentication
+7. Unauthorized admin access
+8. Database initialization
+9. Database models
+10. Duplicate route constraint
+11. Telethon configuration validation
+
+Tests must NOT require real Telegram credentials.
+
+Mock external Telegram services where necessary.
+
+==================================================
+GITIGNORE
+==================================================
+
+Include:
+
+.env
+*.session
+*.session-journal
+data/
+logs/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+Never commit Telegram session files.
+
+==================================================
+PHASE 0 ACCEPTANCE CRITERIA
+==================================================
+
+Phase 0 is complete only when:
+
+[ ] Project structure is clean
+[ ] Environment configuration works
+[ ] BOT_TOKEN is loaded securely
+[ ] API_ID is loaded securely
+[ ] API_HASH is loaded securely
+[ ] TELEGRAM_SESSION is loaded securely
+[ ] Admin IDs are loaded correctly
+[ ] Database initializes
+[ ] Admin Bot connects
+[ ] Telethon User Client initializes
+[ ] Telethon connects using API_ID + API_HASH + Session
+[ ] Telethon authorization status is detected
+[ ] /start works
+[ ] /status works
+[ ] /help works
+[ ] Unauthorized users are blocked
+[ ] Listener foundation starts
+[ ] Application shuts down gracefully
+[ ] SIGINT works
+[ ] SIGTERM works
+[ ] Secrets are never logged
+[ ] Session files are protected
+[ ] Tests pass
+[ ] README is complete
+
+==================================================
+DO NOT IMPLEMENT IN PHASE 0
+==================================================
+
+Do NOT implement:
+
+- Source channel management
+- Target channel management
+- Routing management
+- Automatic reposting
+- Username removal
+- Link removal
+- Keyword filtering
+- Caption rewriting
+- Media processing
+- Album handling
+- Scheduled reposting
+- Analytics
+- Broadcast
+- User-facing features
+
+These belong to future phases.
+
+==================================================
+IMPORTANT DEVELOPMENT RULE
+==================================================
+
+Do not rewrite or simplify the architecture just to make the application run.
+
+Keep:
+
+Telegram Bot Layer
+separate from
+Telethon User Client Layer
+
+Keep:
+
+Handlers
+separate from
+Services
+
+Keep:
+
+Services
+separate from
+Database
+
+Keep:
+
+Configuration
+separate from
+Application Logic
+
+Use:
+
+- Async
+- Type hints
+- Dependency separation
+- Clean error handling
+- Reusable services
+
+==================================================
+FINAL VERIFICATION
+==================================================
+
+After implementation:
+
+1. Run all tests.
+2. Verify database startup.
+3. Verify Admin Bot startup.
+4. Verify Telethon initialization.
+5. Verify Telethon authorization detection.
+6. Verify /start.
+7. Verify /status.
+8. Verify /help.
+9. Verify unauthorized access protection.
+10. Verify graceful shutdown.
+11. Fix all errors found.
+
+Then provide:
+
+- Final project tree
+- Files created
+- Files modified
+- Telegram connection setup explanation
+- Database summary
+- Test results
+- Known limitations
+- Next phase recommendation
+
+DO NOT START PHASE 1 AUTOMATICALLY.
+
+At the end, clearly state:
+
+"PHASE 0 COMPLETE"

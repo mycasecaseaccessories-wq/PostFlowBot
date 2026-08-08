@@ -22,8 +22,8 @@ class AdminAccessMiddleware(BaseMiddleware):
         user = event.from_user
         if user is None or user.id not in self.admin_user_ids:
             if isinstance(event, Message):
-                await event.answer("⛔ Access denied.")
+                await event.answer("Access denied.")
             elif isinstance(event, CallbackQuery):
-                await event.answer("⛔ Access denied.", show_alert=True)
+                await event.answer("Access denied.", show_alert=True)
             return None
         return await handler(event, data)

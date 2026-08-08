@@ -1,1 +1,1 @@
-"""Telegram Content Reposter Bot application package."""
+"""PostFlow Bot application package."""

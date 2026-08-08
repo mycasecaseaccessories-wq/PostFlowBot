@@ -1,4 +1,4 @@
-"""Application entry point for the Telegram Content Reposter Bot."""
+"""Application entry point for PostFlow Bot."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ async def async_main() -> None:
         settings = load_settings()
         configure_logging(settings.log_level)
         logger = get_logger(__name__)
-        logger.info("Starting Telegram Content Reposter Bot")
+        logger.info("Starting PostFlow Bot")
         application = Application(settings)
         await application.run()
     except ConfigurationError as exc:

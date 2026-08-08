@@ -13,9 +13,9 @@ from app.database.models import Admin, RepostHistory, SourceChannel, TargetChann
 
 def environment(database_url: str) -> dict[str, str]:
     return {
-        "BOT_TOKEN": "test-token",
+        "BOT_TOKEN": "123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk",
         "API_ID": "12345",
-        "API_HASH": "test-hash",
+        "API_HASH": "0123456789abcdef0123456789abcdef",
         "TELEGRAM_SESSION": "test-session",
         "ADMIN_USER_IDS": "42",
         "DATABASE_URL": database_url,

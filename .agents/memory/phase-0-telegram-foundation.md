@@ -1,9 +1,9 @@
 ---
-name: Phase 0 Telegram foundation
-description: Durable scope and credential-handling decisions for the Telegram reposting foundation.
+name: PostFlow Phase 0 foundation
+description: Durable scope and credential-handling decisions for the PostFlow Telegram foundation.
 ---
 
-Phase 0 keeps live Telegram access optional for development: tests and database initialization must work without Telegram credentials, while production startup validates configuration and reports disconnected or unauthorized Telethon state safely.
+PostFlow Phase 0 keeps live Telegram access optional for development: tests and database initialization must work without Telegram credentials, while production startup validates bot/API credentials and reports disconnected or unauthorized Telethon state safely.
 
 **Why:** The Telegram connector was not authorized, and the foundation must remain testable without a live bot or user session.
 

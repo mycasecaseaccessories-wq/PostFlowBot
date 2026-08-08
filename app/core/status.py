@@ -15,11 +15,12 @@ class StatusSnapshot:
 
     def as_message(self) -> str:
         return (
-            "🤖 Admin Bot: " + self.admin_bot + "\n"
-            "🗄 Database: " + self.database + "\n"
-            "👤 Telethon: " + self.telethon + "\n"
-            "🔐 Telethon Auth: " + self.telethon_auth + "\n"
-            "📡 Listener: " + self.listener
+            "PostFlow System Status\n\n"
+            "Admin Bot: " + self.admin_bot + "\n"
+            "Database: " + self.database + "\n"
+            "Telethon: " + self.telethon + "\n"
+            "Telethon Authorization: " + self.telethon_auth + "\n"
+            "Listener: " + self.listener
         )
 
 

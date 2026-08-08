@@ -15,8 +15,8 @@ def admin_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📡 Source Channels"), KeyboardButton(text="📤 Target Channels")],
-            [KeyboardButton(text="⚙️ Settings"), KeyboardButton(text="📊 History")],
-            [KeyboardButton(text="🔧 System Status")],
+            [KeyboardButton(text="🔀 Routing Rules"), KeyboardButton(text="⚙️ Settings")],
+            [KeyboardButton(text="📊 History"), KeyboardButton(text="🔧 System Status")],
         ],
         resize_keyboard=True,
     )
@@ -29,13 +29,15 @@ def build_router(status_service: StatusService) -> Router:
     async def start_handler(message: Message) -> None:
         status_service.admin_bot_online = True
         await message.answer(
-            "🤖 Telegram Content Reposter\n\n"
+            "PostFlow Bot\n\n"
             "System Status\n"
             "🟢 Admin Bot: Online\n"
             f"{'🟢' if status_service.database_connected else '🔴'} Database: "
             f"{'Connected' if status_service.database_connected else 'Disconnected'}\n"
             f"{'🟢' if status_service.telethon_connected else '🔴'} Telethon: "
-            f"{'Connected' if status_service.telethon_connected else 'Disconnected'}",
+            f"{'Connected' if status_service.telethon_connected else 'Disconnected'}\n"
+            f"{'🟢' if status_service.listener_running else '🔴'} Listener: "
+            f"{'Running' if status_service.listener_running else 'Stopped'}",
             reply_markup=admin_keyboard(),
         )
 
@@ -56,7 +58,13 @@ def build_router(status_service: StatusService) -> Router:
 
     @router.message(
         lambda message: message.text
-        in {"📡 Source Channels", "📤 Target Channels", "⚙️ Settings", "📊 History"}
+        in {
+            "📡 Source Channels",
+            "📤 Target Channels",
+            "🔀 Routing Rules",
+            "⚙️ Settings",
+            "📊 History",
+        }
     )
     async def future_feature_handler(message: Message) -> None:
         await message.answer(FOUNDATION_NOTICE)

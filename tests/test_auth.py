@@ -38,4 +38,4 @@ async def test_admin_middleware_blocks_unauthorized_user() -> None:
     result = await middleware(handler, message, {})
     assert result is None
     assert not called
-    message.answer.assert_awaited_once_with("⛔ Access denied.")
+    message.answer.assert_awaited_once_with("Access denied.")
