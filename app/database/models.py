@@ -1,10 +1,20 @@
-"""SQLAlchemy models for Phase 0 and future reposting phases."""
+"""SQLAlchemy models for the PostFlow foundation and channel management."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -36,6 +46,7 @@ class SourceChannel(TimestampMixin, Base):
     telegram_chat_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True, nullable=False)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    channel_type: Mapped[str] = mapped_column(String(32), default="channel", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     repost_rules: Mapped[list["RepostRule"]] = relationship(
         back_populates="source_channel", cascade="all, delete-orphan"
@@ -52,6 +63,10 @@ class TargetChannel(TimestampMixin, Base):
     telegram_chat_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True, nullable=False)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    channel_type: Mapped[str] = mapped_column(String(32), default="channel", nullable=False)
+    publishing_permission_confirmed: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     repost_rules: Mapped[list["RepostRule"]] = relationship(
         back_populates="target_channel", cascade="all, delete-orphan"
@@ -63,6 +78,13 @@ class TargetChannel(TimestampMixin, Base):
 
 class RepostRule(TimestampMixin, Base):
     __tablename__ = "repost_rules"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_channel_id",
+            "target_channel_id",
+            name="uq_repost_rule_source_target",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_channel_id: Mapped[int] = mapped_column(

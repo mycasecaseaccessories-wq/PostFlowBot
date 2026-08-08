@@ -1,0 +1,828 @@
+You are a senior Python Telegram automation engineer.
+
+PROJECT:
+PostFlow Bot
+
+CURRENT STATUS:
+Phase 0 has been completed.
+
+Now implement ONLY PHASE 1.
+
+==================================================
+PHASE 1 — SOURCE & TARGET CHANNEL MANAGEMENT
+==================================================
+
+OBJECTIVE:
+
+Build a complete Admin Bot interface for managing:
+
+1. Source Channels
+2. Target Channels
+3. Source → Target routing rules
+
+The Telethon listener and repost engine already have their foundation from Phase 0.
+
+DO NOT implement the complete automatic reposting engine yet.
+
+Phase 1 is focused on channel management and routing configuration.
+
+==================================================
+IMPORTANT RULES
+==================================================
+
+1. Do not rewrite the Phase 0 architecture unnecessarily.
+2. Reuse existing database models/services where possible.
+3. Do not put business logic directly inside Telegram handlers.
+4. Keep database operations inside repositories/services.
+5. Keep Telegram API logic inside Telegram-related services.
+6. Maintain async architecture.
+7. Do not hard-code credentials.
+8. Do not expose sensitive information.
+9. Do not start implementing advanced content cleaning.
+10. Do not automatically repost messages yet unless required for a minimal integration test.
+
+==================================================
+ADMIN BOT MAIN MENU
+==================================================
+
+Update /start to show:
+
+🤖 PostFlow Bot
+
+System Status:
+🟢 Bot: Online
+🟢 Database: Connected
+🟢 Telethon: Connected/Disconnected
+
+Main Menu:
+
+📡 Source Channels
+📤 Target Channels
+🔗 Routing Rules
+⚙️ Settings
+📊 History
+🔧 System Status
+
+Use InlineKeyboardMarkup.
+
+All admin actions must be protected by the existing admin authentication system.
+
+==================================================
+SOURCE CHANNEL MANAGEMENT
+==================================================
+
+Create a complete Source Channel management interface.
+
+Menu:
+
+📡 Source Channels
+
+Buttons:
+
+➕ Add Source
+📋 Source List
+🔄 Enable / Disable
+🗑 Remove Source
+⬅️ Back
+
+==================================================
+ADD SOURCE CHANNEL
+==================================================
+
+When admin presses:
+
+➕ Add Source
+
+Ask:
+
+"📡 Send the Source Channel username or Channel ID."
+
+Accept:
+
+@channelusername
+
+or
+
+channel username without @
+
+or
+
+numeric Telegram Channel ID where supported.
+
+Example:
+
+@examplechannel
+
+After receiving the input:
+
+1. Validate the input.
+2. Use Telethon to resolve the channel.
+3. Confirm that the Telegram account can access the channel.
+4. Retrieve:
+   - Telegram Chat ID
+   - Username
+   - Title
+   - Channel type
+5. Store the channel in the database.
+6. Prevent duplicate entries.
+
+If successful:
+
+"✅ Source Channel added successfully."
+
+Show:
+
+📡 Source:
+Title: Example Channel
+Username: @examplechannel
+ID: -100xxxxxxxxxx
+Status: 🟢 Active
+
+Do NOT expose unnecessary Telegram internal information to users.
+
+==================================================
+SOURCE CHANNEL VALIDATION
+==================================================
+
+Before saving a source channel:
+
+Check:
+
+- Channel exists
+- Telethon account can access it
+- It is a supported channel type
+- It is not already registered
+
+Handle errors gracefully:
+
+- Channel not found
+- Private channel inaccessible
+- Invalid username
+- Invalid ID
+- Permission error
+- Telegram API error
+- FloodWait
+
+Never expose raw exception tracebacks to the admin.
+
+==================================================
+SOURCE CHANNEL LIST
+==================================================
+
+📋 Source List should show all registered source channels.
+
+Example:
+
+📡 SOURCE CHANNELS
+
+1. 🎬 Movie Channel
+   @moviechannel
+   🟢 Active
+
+2. 📺 Series Channel
+   @serieschannel
+   🔴 Disabled
+
+Each channel should have an inline button:
+
+[🎬 Movie Channel]
+
+When clicked, show:
+
+📡 Channel Details
+
+Title:
+Username:
+Status:
+Created:
+Active Routes:
+
+Buttons:
+
+🔄 Enable
+⏸ Disable
+🔄 Refresh
+🗑 Remove
+⬅️ Back
+
+Use pagination if the list becomes large.
+
+Do not load an unlimited number of channels into a single Telegram message.
+
+==================================================
+ENABLE / DISABLE SOURCE
+==================================================
+
+Admin must be able to enable or disable a source channel.
+
+Disabled source:
+
+- Remains in database
+- Is not considered active for future processing
+- Can be re-enabled later
+
+Do not delete the channel when disabling it.
+
+==================================================
+REMOVE SOURCE
+==================================================
+
+When admin selects:
+
+🗑 Remove Source
+
+Ask for confirmation:
+
+⚠️ Remove this source channel?
+
+[✅ Confirm]
+[❌ Cancel]
+
+Do not delete immediately.
+
+When confirmed:
+
+- Remove or deactivate the source channel according to database design.
+- Handle related routing rules safely.
+- Preserve historical records where possible.
+
+Prefer soft deletion if appropriate.
+
+==================================================
+TARGET CHANNEL MANAGEMENT
+==================================================
+
+Create:
+
+📤 Target Channels
+
+Buttons:
+
+➕ Add Target
+📋 Target List
+🔄 Enable / Disable
+🗑 Remove
+⬅️ Back
+
+==================================================
+ADD TARGET
+==================================================
+
+Ask:
+
+"📤 Send the Target Channel username or Channel ID."
+
+Example:
+
+@mychannel
+
+or numeric Telegram Channel ID.
+
+Resolve the channel using Telethon.
+
+Retrieve:
+
+- Telegram Chat ID
+- Username
+- Title
+- Channel type
+
+Save it to TargetChannel.
+
+Prevent duplicate target channels.
+
+==================================================
+TARGET VALIDATION
+==================================================
+
+Before adding:
+
+Check:
+
+- Channel exists
+- Telethon account can access it
+- Channel is valid
+- Account has sufficient permission to publish where required
+- Channel is not already registered
+
+If publishing permission cannot be verified:
+
+Show:
+
+⚠️ Target channel was found, but publishing permission could not be confirmed.
+
+Do not falsely report that publishing is guaranteed.
+
+==================================================
+TARGET LIST
+==================================================
+
+Display:
+
+📤 TARGET CHANNELS
+
+1. 🏠 My Main Channel
+   @mychannel
+   🟢 Active
+
+2. 🎬 Movie Channel
+   @mysecondchannel
+   🟢 Active
+
+Each target must have a details page.
+
+Target details:
+
+📤 Target Channel
+
+Title:
+Username:
+Status:
+Created:
+Incoming Routes:
+
+Buttons:
+
+🔄 Enable
+⏸ Disable
+🔄 Refresh
+🗑 Remove
+⬅️ Back
+
+==================================================
+ROUTING RULES
+==================================================
+
+Implement:
+
+🔗 Routing Rules
+
+Purpose:
+
+Define which source channel sends content to which target channel.
+
+Example:
+
+Source:
+🎬 Movie Source
+
+↓
+
+Target:
+🏠 Main Channel
+
+Create:
+
+➕ Add Route
+📋 Route List
+🔄 Enable / Disable
+🗑 Remove
+⬅️ Back
+
+==================================================
+ADD ROUTE
+==================================================
+
+Admin selects:
+
+➕ Add Route
+
+Step 1:
+
+Select Source Channel.
+
+Step 2:
+
+Select Target Channel.
+
+Step 3:
+
+Confirm:
+
+🔗 Create Route?
+
+Source:
+🎬 Movie Source
+
+↓
+
+Target:
+🏠 Main Channel
+
+[✅ Confirm]
+[❌ Cancel]
+
+After confirmation:
+
+Create RepostRule.
+
+Set:
+
+is_active = True
+
+Default values:
+
+remove_usernames = False
+remove_links = False
+remove_keywords = False
+delay_seconds = 0
+
+These settings will be fully configured in later phases.
+
+==================================================
+ROUTE LIST
+==================================================
+
+Display:
+
+🔗 ROUTING RULES
+
+1.
+🎬 Movie Source
+   ↓
+🏠 Main Channel
+   🟢 Active
+
+2.
+📺 Series Source
+   ↓
+🎬 Series Channel
+   🔴 Disabled
+
+Clicking a route opens:
+
+🔗 Route Details
+
+Source:
+Target:
+Status:
+Created:
+
+Buttons:
+
+🔄 Enable
+⏸ Disable
+🗑 Remove
+⬅️ Back
+
+==================================================
+ROUTE VALIDATION
+==================================================
+
+Do not allow:
+
+Source = Target
+
+Prevent duplicate routes:
+
+Same Source + Same Target
+
+should not be created twice.
+
+A disabled route can later be re-enabled.
+
+==================================================
+DATABASE
+==================================================
+
+Use the existing Phase 0 models.
+
+Improve them if necessary.
+
+Ensure:
+
+SourceChannel.telegram_chat_id is indexed.
+
+TargetChannel.telegram_chat_id is indexed.
+
+RepostRule has proper foreign keys.
+
+Create a uniqueness constraint for:
+
+source_channel_id + target_channel_id
+
+This prevents duplicate routes.
+
+Use proper cascade/restrict behavior.
+
+Do not destroy historical repost history accidentally when deleting a channel.
+
+==================================================
+SERVICE LAYER
+==================================================
+
+Create or extend:
+
+SourceChannelService
+
+Methods conceptually:
+
+add_source()
+get_source()
+list_sources()
+update_source()
+enable_source()
+disable_source()
+remove_source()
+resolve_source()
+
+Create:
+
+TargetChannelService
+
+Methods:
+
+add_target()
+get_target()
+list_targets()
+update_target()
+enable_target()
+disable_target()
+remove_target()
+resolve_target()
+
+Create:
+
+RoutingService
+
+Methods:
+
+create_route()
+get_route()
+list_routes()
+enable_route()
+disable_route()
+remove_route()
+validate_route()
+
+Handlers should call services.
+
+Handlers must NOT directly manipulate SQLAlchemy models.
+
+==================================================
+TELEGRAM UI
+==================================================
+
+Use InlineKeyboardMarkup.
+
+Implement clean navigation:
+
+Main Menu
+    ↓
+Source Channels
+    ↓
+Source Details
+    ↓
+Action
+    ↓
+Back
+
+Same for Target Channels and Routing Rules.
+
+Always provide:
+
+⬅️ Back
+
+and where appropriate:
+
+🏠 Main Menu
+
+Avoid dead-end menus.
+
+==================================================
+CONVERSATION / INPUT HANDLING
+==================================================
+
+When asking the admin to enter:
+
+- Channel username
+- Channel ID
+
+The bot must properly track the expected input state.
+
+Do not accidentally treat unrelated messages as channel IDs.
+
+Provide:
+
+❌ Cancel
+
+during input.
+
+Example:
+
+📡 Enter Source Channel
+
+Send:
+@channelusername
+
+or Channel ID.
+
+[❌ Cancel]
+
+If admin presses Cancel:
+
+Return to Source Channels menu.
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Handle:
+
+Invalid channel username
+Invalid channel ID
+Channel not found
+Private channel inaccessible
+Telegram permission errors
+Bot permission issues
+Duplicate channel
+Duplicate route
+Database errors
+FloodWait
+Network errors
+
+Show user-friendly messages.
+
+Example:
+
+❌ Could not access this channel.
+
+Please make sure the Telethon account has access to the channel.
+
+Do not expose raw stack traces.
+
+==================================================
+TELETHON INTEGRATION
+==================================================
+
+Reuse the Phase 0 TelethonClientService.
+
+Do not create a second Telethon client.
+
+Create a channel resolver service around the existing client.
+
+Conceptually:
+
+ChannelResolver
+
+resolve()
+get_entity()
+validate_access()
+get_channel_info()
+
+The resolver should return normalized channel information.
+
+==================================================
+SECURITY
+==================================================
+
+Only authenticated admins can:
+
+- Add channels
+- Remove channels
+- Enable/disable channels
+- Create routes
+- Remove routes
+- View channel management
+
+Unauthorized users must not be able to trigger callback handlers manually.
+
+Validate admin permissions inside callback handlers as well.
+
+Do not trust callback data alone.
+
+==================================================
+LOGGING
+==================================================
+
+Log important admin actions:
+
+Admin added source channel
+Admin removed source channel
+Admin added target channel
+Admin removed target channel
+Admin created route
+Admin removed route
+Admin enabled/disabled route
+
+Use Telegram user ID for audit logs.
+
+Do not log secrets.
+
+==================================================
+TESTING
+==================================================
+
+Add tests for:
+
+1. Source channel creation
+2. Duplicate source prevention
+3. Source enable/disable
+4. Source removal
+5. Target creation
+6. Duplicate target prevention
+7. Target enable/disable
+8. Route creation
+9. Duplicate route prevention
+10. Source = Target validation
+11. Admin authorization
+12. Unauthorized callback rejection
+
+Tests must not require a real Telegram connection.
+
+Mock Telethon where necessary.
+
+==================================================
+PHASE 1 ACCEPTANCE CRITERIA
+==================================================
+
+Phase 1 is complete only when:
+
+[ ] Admin can open Source Channels
+[ ] Admin can add Source Channel
+[ ] Source channel is resolved through Telethon
+[ ] Source channel is stored in database
+[ ] Duplicate sources are prevented
+[ ] Admin can view source list
+[ ] Admin can view source details
+[ ] Admin can enable/disable source
+[ ] Admin can remove source safely
+
+[ ] Admin can open Target Channels
+[ ] Admin can add Target Channel
+[ ] Target channel is resolved through Telethon
+[ ] Target channel is stored in database
+[ ] Duplicate targets are prevented
+[ ] Admin can view target list
+[ ] Admin can view target details
+[ ] Admin can enable/disable target
+[ ] Admin can remove target safely
+
+[ ] Admin can open Routing Rules
+[ ] Admin can create Source → Target route
+[ ] Duplicate routes are prevented
+[ ] Source = Target is prevented
+[ ] Admin can list routes
+[ ] Admin can view route details
+[ ] Admin can enable/disable routes
+[ ] Admin can remove routes
+[ ] Navigation works correctly
+[ ] Cancel buttons work
+[ ] Unauthorized users are blocked
+[ ] Tests pass
+[ ] Existing Phase 0 functionality still works
+
+==================================================
+DO NOT IMPLEMENT IN PHASE 1
+==================================================
+
+Do NOT implement:
+
+❌ Automatic reposting
+❌ Username removal
+❌ Link removal
+❌ Keyword filtering
+❌ Caption rewriting
+❌ Media processing
+❌ Album processing
+❌ Scheduled posts
+❌ Delay engine
+❌ Retry engine
+❌ Analytics
+❌ Broadcast
+❌ User-facing features
+
+Those belong to future phases.
+
+==================================================
+FINAL VERIFICATION
+==================================================
+
+After implementation:
+
+1. Run all tests.
+2. Check database initialization.
+3. Check Admin Bot startup.
+4. Check Telethon initialization.
+5. Check every callback handler.
+6. Check Back buttons.
+7. Check Cancel buttons.
+8. Check duplicate protection.
+9. Check unauthorized access.
+10. Fix all errors found.
+
+Then provide:
+
+1. Final project tree
+2. Files created/modified
+3. Features implemented
+4. Database changes
+5. Test results
+6. Known limitations
+7. Recommended next phase
+
+DO NOT START PHASE 2 AUTOMATICALLY.
+
+At the end, clearly state:
+
+"PHASE 1 COMPLETE"

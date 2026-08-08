@@ -10,6 +10,8 @@ from aiogram.utils.token import TokenValidationError, validate_token
 from app.config.settings import ConfigurationError, Settings
 from app.core.logger import get_logger
 from app.core.status import StatusService
+from app.services.channel_service import SourceChannelService, TargetChannelService
+from app.services.routing_service import RoutingService
 
 from .auth import AdminAccessMiddleware
 from .handlers import build_router
@@ -18,7 +20,14 @@ logger = get_logger(__name__)
 
 
 class AdminBotService:
-    def __init__(self, settings: Settings, status_service: StatusService) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        status_service: StatusService,
+        source_service: SourceChannelService,
+        target_service: TargetChannelService,
+        routing_service: RoutingService,
+    ) -> None:
         try:
             validate_token(settings.bot_token)
         except TokenValidationError as exc:
@@ -36,7 +45,9 @@ class AdminBotService:
         self.dispatcher.callback_query.outer_middleware(
             AdminAccessMiddleware(settings.admin_user_ids)
         )
-        self.dispatcher.include_router(build_router(status_service))
+        self.dispatcher.include_router(
+            build_router(status_service, source_service, target_service, routing_service)
+        )
         self.status_service = status_service
         self.running = False
 

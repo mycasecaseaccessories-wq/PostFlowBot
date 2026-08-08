@@ -10,8 +10,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.bot.bot import AdminBotService
 from app.config.settings import Settings
 from app.database.database import Database
+from app.database.repositories.channels import ChannelRepository
+from app.database.repositories.routing import RoutingRepository
+from app.services.channel_service import SourceChannelService, TargetChannelService
+from app.services.routing_service import RoutingService
 from app.telegram.client import TelethonClientService
 from app.telegram.listener import MessageListenerService
+from app.telegram.resolver import ChannelResolver
 
 from .logger import get_logger
 from .status import StatusService
@@ -25,10 +30,34 @@ class Application:
         self.status_service = StatusService()
         self.database = Database(settings)
         self.telethon = TelethonClientService(settings)
+        self.channel_repository = ChannelRepository(self.database.session_factory)
+        self.routing_repository = RoutingRepository(self.database.session_factory)
+        self.channel_resolver = ChannelResolver(self.telethon)
+        self.source_service = SourceChannelService(
+            self.channel_repository,
+            self.channel_resolver,
+            self.routing_repository,
+        )
+        self.target_service = TargetChannelService(
+            self.channel_repository,
+            self.channel_resolver,
+            self.routing_repository,
+        )
+        self.routing_service = RoutingService(
+            self.routing_repository,
+            self.source_service,
+            self.target_service,
+        )
         self.listener = MessageListenerService(
             self.telethon.get_client(), self.status_service
         )
-        self.bot = AdminBotService(settings, self.status_service)
+        self.bot = AdminBotService(
+            settings,
+            self.status_service,
+            self.source_service,
+            self.target_service,
+            self.routing_service,
+        )
         self.scheduler = AsyncIOScheduler(timezone=settings.timezone)
         self._shutdown_event = asyncio.Event()
         self._started = False

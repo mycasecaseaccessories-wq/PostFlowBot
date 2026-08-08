@@ -15,3 +15,11 @@ class DatabaseServiceError(ReposterError):
 
 class UnauthorizedAdminError(ReposterError):
     """A Telegram user is not authorized to use the admin interface."""
+
+
+class NotFoundError(ReposterError):
+    """A requested application record does not exist."""
+
+
+class ConflictError(ReposterError):
+    """An operation conflicts with an existing application record."""
