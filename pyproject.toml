@@ -1,0 +1,24 @@
+[project]
+name = "telegram-content-reposter"
+version = "0.1.0"
+description = "Phase 0 foundation for an async Telegram content reposting system."
+requires-python = ">=3.11"
+dependencies = [
+    "aiogram>=3.0,<4.0",
+    "aiosqlite>=0.19,<1.0",
+    "apscheduler>=3.10,<4.0",
+    "python-dotenv>=1.0,<2.0",
+    "sqlalchemy>=2.0,<3.0",
+    "telethon>=1.36,<2.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0,<9.0",
+    "pytest-asyncio>=0.23,<1.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]

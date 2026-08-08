@@ -1,45 +1,62 @@
-# [Project name]
+# Telegram Content Reposter Bot
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Phase 0 foundation for an async Telegram channel monitoring and reposting system.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `uv run pytest -q` — run the Phase 0 test suite
+- `uv run python main.py` — run the service after configuring `.env`
+- `uv run python scripts/create_session.py` — create a Telethon session interactively, once
+- `python -m compileall -q app main.py tests` — syntax check
+- Required environment variables are documented in `.env.example`
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python 3.11+
+- Telethon for the authorized user client
+- aiogram 3.x for the admin bot
+- SQLAlchemy 2.x async ORM with SQLite in Phase 0
+- APScheduler initialized for future scheduling work
+- python-dotenv for environment loading
+- pytest and pytest-asyncio for tests
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `app/config` — validated environment settings
+- `app/database` — async engine, models, and repositories
+- `app/bot` — admin authentication middleware and aiogram handlers
+- `app/telegram` — Telethon client, listener, and publisher abstraction
+- `app/services` — business-service boundaries reserved for future phases
+- `app/core` — lifecycle, status, logging, and shared exceptions
+- `tests` — credential-free configuration, auth, and database tests
+- `main.py` — application entry point
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The Telethon user client and Telegram admin bot are separate components with separate responsibilities.
+- All startup dependencies are created by `Application`; the Telethon client has one owner and is injected into the listener.
+- SQLAlchemy URLs are used instead of SQLite-specific APIs so PostgreSQL can replace SQLite later.
+- Phase 0 listener and publisher interfaces are intentionally inert: receiving an event never publishes it.
+- The database uniqueness constraint prevents the same source message being processed twice for one source/target relationship.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+The foundation validates configuration, initializes persistence, authenticates admin Telegram users,
+reports health, and prepares safe extension points for monitoring, processing, duplicate checks, and
+publishing. Automatic reposting is intentionally deferred.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Keep Phase 0 limited to foundation work; do not start Phase 1 automatically.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The production entry point never prompts for a phone number, OTP, or password.
+- Run `scripts/create_session.py` once for interactive Telethon authorization before production startup.
+- `.env`, Telethon session files, and local database data are ignored by Git.
+- Without live Telegram credentials, tests still run because Telegram network calls are not required by the suite.
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- See `.env.example` for the complete configuration surface.
+- See `README.md` for setup, architecture, troubleshooting, and Phase 0 limitations.

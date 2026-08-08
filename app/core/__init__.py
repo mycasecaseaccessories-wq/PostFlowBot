@@ -1,0 +1,1 @@
+"""Application lifecycle, logging, and shared exceptions."""
