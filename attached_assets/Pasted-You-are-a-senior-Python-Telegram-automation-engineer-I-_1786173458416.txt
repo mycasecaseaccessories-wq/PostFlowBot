@@ -1,0 +1,795 @@
+You are a senior Python Telegram automation engineer.
+
+I want you to build PHASE 0 of a project called:
+
+"Telegram Content Reposter Bot"
+
+==================================================
+PROJECT GOAL
+==================================================
+
+Build the foundation for a Telegram content reposting system.
+
+The final system will monitor Telegram channels that the authorized user account has access to, process incoming channel posts, remove configured attribution/usernames/links from the content where permitted, and publish the processed content to configured destination channels.
+
+IMPORTANT:
+PHASE 0 IS FOUNDATION ONLY.
+
+Do NOT implement the complete reposting system yet.
+
+Do NOT jump ahead to Phase 1, Phase 2, or advanced features.
+
+Build a clean architecture that can be extended safely in later phases.
+
+==================================================
+CORE ARCHITECTURE
+==================================================
+
+The project will have TWO Telegram components:
+
+1. TELETHON USER CLIENT
+2. TELEGRAM ADMIN BOT
+
+Telethon User Client:
+- Used for monitoring channels accessible to the authorized Telegram account.
+- Will eventually receive new channel posts.
+- Will eventually process and publish content.
+
+Telegram Admin Bot:
+- Used by the administrator to control the system.
+- Will eventually manage source channels, destination channels, rules, history, and settings.
+
+Architecture:
+
+                    ┌──────────────────────┐
+                    │   Telegram Channels  │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │   Telethon Client    │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Message Listener     │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Content Processor     │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Destination Channel  │
+                    └──────────────────────┘
+
+
+                    ┌──────────────────────┐
+                    │    Admin Telegram    │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │     Admin Bot        │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │    Service Layer     │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │      Database        │
+                    └──────────────────────┘
+
+
+==================================================
+TECHNOLOGY
+==================================================
+
+Use:
+
+- Python 3.11+
+- Telethon
+- aiogram 3.x
+- SQLite
+- SQLAlchemy 2.x
+- APScheduler
+- python-dotenv
+
+The database layer must be designed so SQLite can later be replaced with PostgreSQL.
+
+Use async architecture throughout the application.
+
+==================================================
+PHASE 0 OBJECTIVES
+==================================================
+
+Implement ONLY the following:
+
+1. Project structure
+2. Configuration system
+3. Environment variable validation
+4. Database foundation
+5. Admin authentication
+6. Telegram Admin Bot foundation
+7. Telethon client foundation
+8. Application lifecycle
+9. Logging system
+10. Error handling foundation
+11. Health/status system
+12. Basic tests
+13. README documentation
+
+Do NOT implement full automatic reposting yet.
+
+==================================================
+PROJECT STRUCTURE
+==================================================
+
+Create a clean modular structure similar to:
+
+telegram-reposter/
+│
+├── app/
+│   ├── __init__.py
+│   │
+│   ├── config/
+│   │   ├── __init__.py
+│   │   └── settings.py
+│   │
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── database.py
+│   │   ├── models.py
+│   │   └── repositories/
+│   │
+│   ├── bot/
+│   │   ├── __init__.py
+│   │   ├── bot.py
+│   │   ├── filters/
+│   │   ├── handlers/
+│   │   └── keyboards/
+│   │
+│   ├── telegram/
+│   │   ├── __init__.py
+│   │   ├── client.py
+│   │   ├── listener.py
+│   │   └── publisher.py
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── channel_service.py
+│   │   ├── repost_service.py
+│   │   ├── cleaner_service.py
+│   │   └── history_service.py
+│   │
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── lifecycle.py
+│   │   ├── exceptions.py
+│   │   └── logger.py
+│   │
+│   └── utils/
+│       ├── __init__.py
+│       └── helpers.py
+│
+├── tests/
+│   ├── test_config.py
+│   ├── test_database.py
+│   └── test_auth.py
+│
+├── main.py
+├── requirements.txt
+├── .env.example
+├── .gitignore
+└── README.md
+
+You may improve this structure if there is a strong architectural reason.
+
+Do not create a single-file application.
+
+==================================================
+ENVIRONMENT CONFIGURATION
+==================================================
+
+Create:
+
+.env.example
+
+Required variables:
+
+BOT_TOKEN=
+API_ID=
+API_HASH=
+TELEGRAM_SESSION=
+ADMIN_USER_IDS=
+
+DATABASE_URL=sqlite+aiosqlite:///./data/reposter.db
+
+LOG_LEVEL=INFO
+
+Optional:
+
+TIMEZONE=UTC
+
+Never hard-code secrets.
+
+Never expose secrets in logs.
+
+Add .env to .gitignore.
+
+Create automatic data directory if it does not exist.
+
+==================================================
+CONFIGURATION VALIDATION
+==================================================
+
+Create a centralized settings system.
+
+Validate required variables during startup.
+
+If configuration is invalid:
+
+- Show a clear error
+- Identify the missing variable
+- Stop startup safely
+
+Do NOT expose secret values.
+
+Example:
+
+ERROR: Required environment variable BOT_TOKEN is missing.
+
+Do NOT print the actual API_HASH or BOT_TOKEN.
+
+==================================================
+DATABASE FOUNDATION
+==================================================
+
+Use SQLAlchemy 2.x async support.
+
+Use SQLite for Phase 0.
+
+Prepare the architecture for PostgreSQL later.
+
+Create these models:
+
+1. Admin
+
+Fields:
+
+- id
+- telegram_user_id
+- is_active
+- created_at
+- updated_at
+
+2. SourceChannel
+
+Fields:
+
+- id
+- telegram_chat_id
+- username
+- title
+- is_active
+- created_at
+- updated_at
+
+3. TargetChannel
+
+Fields:
+
+- id
+- telegram_chat_id
+- username
+- title
+- is_active
+- created_at
+- updated_at
+
+4. RepostRule
+
+Fields:
+
+- id
+- source_channel_id
+- target_channel_id
+- is_active
+- remove_usernames
+- remove_links
+- remove_keywords
+- delay_seconds
+- created_at
+- updated_at
+
+5. RepostHistory
+
+Fields:
+
+- id
+- source_channel_id
+- target_channel_id
+- source_message_id
+- target_message_id
+- status
+- error_message
+- created_at
+
+6. SystemSetting
+
+Fields:
+
+- id
+- key
+- value
+- updated_at
+
+Add appropriate indexes.
+
+Prepare relationships between models.
+
+IMPORTANT:
+
+Create a database-level uniqueness strategy that can prevent duplicate processing of the same source message for the same source/target relationship.
+
+==================================================
+ADMIN AUTHENTICATION
+==================================================
+
+The Admin Bot must only be accessible to Telegram user IDs defined in:
+
+ADMIN_USER_IDS
+
+Implement an admin authentication filter/middleware.
+
+Authorized user:
+
+→ Can access admin interface.
+
+Unauthorized user:
+
+→ Must receive an access-denied message.
+
+Do not expose admin buttons or admin functionality to unauthorized users.
+
+Support multiple admin IDs.
+
+Do not store bot tokens or other secrets in the database.
+
+==================================================
+ADMIN BOT FOUNDATION
+==================================================
+
+Use aiogram 3.x.
+
+Implement:
+
+/start
+/status
+/help
+
+/start should display:
+
+🤖 Telegram Content Reposter
+
+System Status
+
+🟢 Admin Bot: Online
+🟢 Database: Connected
+🟢 Telethon: Connected / Disconnected
+
+Show the following buttons:
+
+📡 Source Channels
+📤 Target Channels
+⚙️ Settings
+📊 History
+🔧 System Status
+
+For features that are not implemented in Phase 0, display:
+
+"🚧 This feature will be available in the next phase."
+
+Do NOT implement the full feature yet.
+
+==================================================
+TELETHON CLIENT FOUNDATION
+==================================================
+
+Create a dedicated Telethon client service.
+
+Example:
+
+TelethonClientService
+
+Responsibilities:
+
+- Initialize Telethon client
+- Load API_ID
+- Load API_HASH
+- Load session
+- Connect
+- Disconnect
+- Check connection status
+- Provide client instance to services
+
+Methods should conceptually include:
+
+connect()
+disconnect()
+is_connected()
+get_client()
+
+The client must not be initialized in multiple places.
+
+==================================================
+TELETHON AUTHENTICATION
+==================================================
+
+The system must detect whether the Telethon session is authorized.
+
+If unauthorized:
+
+- Log a clear warning
+- Do not crash with an unclear traceback
+- Report the state through /status
+
+Do not ask for phone number or OTP automatically inside the production startup flow.
+
+The session setup process must be documented in README.
+
+==================================================
+MESSAGE LISTENER FOUNDATION
+==================================================
+
+Create:
+
+MessageListenerService
+
+The architecture must support future events:
+
+- NewMessage
+- MessageEdited
+- MessageDeleted
+
+For Phase 0:
+
+ONLY establish the listener architecture.
+
+Do NOT implement the complete automatic reposting behavior.
+
+When a new message event is received during Phase 0, it may simply log:
+
+"New Telegram message detected from configured source."
+
+Do not send it to the destination channel yet.
+
+==================================================
+CONTENT PROCESSOR FOUNDATION
+==================================================
+
+Create clean interfaces/services for:
+
+ContentProcessor
+ContentCleaner
+DuplicateChecker
+Publisher
+
+These should be designed as independent components.
+
+Future architecture:
+
+Incoming Message
+       ↓
+ContentProcessor
+       ↓
+ContentCleaner
+       ↓
+DuplicateChecker
+       ↓
+Publisher
+
+For Phase 0, implement the interfaces/foundation only.
+
+Do NOT implement advanced username removal yet.
+
+Do NOT implement automatic forwarding yet.
+
+==================================================
+PUBLISHER FOUNDATION
+==================================================
+
+Create a Publisher service abstraction.
+
+Example:
+
+TelegramPublisher
+
+It should eventually support:
+
+- Text
+- Photo
+- Video
+- Document
+- Audio
+- Media groups
+
+For Phase 0:
+
+Only create the service structure and dependency interface.
+
+Do not automatically publish messages.
+
+==================================================
+LOGGING
+==================================================
+
+Create centralized logging.
+
+Log:
+
+- Application startup
+- Application shutdown
+- Configuration validation
+- Database initialization
+- Bot connection
+- Telethon connection
+- Telethon authorization state
+- Listener startup
+- Unexpected exceptions
+- Important service events
+
+NEVER log:
+
+- BOT_TOKEN
+- API_HASH
+- API_ID together with secrets
+- TELEGRAM_SESSION
+- OTP
+- Passwords
+
+Use appropriate log levels:
+
+DEBUG
+INFO
+WARNING
+ERROR
+CRITICAL
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Create centralized error handling.
+
+The application must not crash because of one Telegram event or one service error.
+
+Prepare architecture for future handling of:
+
+- Telegram API errors
+- FloodWait
+- Network errors
+- Database errors
+- Invalid channel
+- Permission errors
+- Authentication errors
+
+Do not implement aggressive retry loops in Phase 0.
+
+==================================================
+APPLICATION LIFECYCLE
+==================================================
+
+Startup sequence:
+
+1. Load environment
+2. Validate configuration
+3. Initialize logging
+4. Initialize database
+5. Initialize Telethon
+6. Connect Telethon
+7. Check Telethon authorization
+8. Initialize Admin Bot
+9. Register handlers
+10. Initialize listener service
+11. Start listener
+12. Start Admin Bot polling
+
+Shutdown sequence:
+
+1. Stop listener
+2. Stop scheduler if initialized
+3. Stop Bot polling
+4. Disconnect Telethon
+5. Close database
+6. Cleanly exit
+
+Handle:
+
+SIGINT
+SIGTERM
+
+The application must shut down gracefully.
+
+==================================================
+STATUS SYSTEM
+==================================================
+
+Implement a status service.
+
+The Admin Bot /status command should show:
+
+🤖 Admin Bot: Online
+🗄 Database: Connected
+👤 Telethon: Connected/Disconnected
+🔐 Telethon Auth: Authorized/Unauthorized
+📡 Listener: Running/Stopped
+
+Do not expose sensitive information.
+
+==================================================
+SCHEDULER
+==================================================
+
+Install and initialize APScheduler dependency.
+
+For Phase 0:
+
+Do NOT implement scheduling features.
+
+Only create the architecture so scheduling can be added in a future phase.
+
+==================================================
+SECURITY
+==================================================
+
+Follow these rules:
+
+- Secrets must come from environment variables.
+- Never hard-code credentials.
+- Never log secrets.
+- Never commit .env.
+- Validate admin access.
+- Sanitize error messages where needed.
+- Do not expose internal stack traces to normal Telegram users.
+- Keep sensitive Telegram session information private.
+
+==================================================
+README
+==================================================
+
+Create a complete README.md.
+
+Include:
+
+1. Project overview
+2. Architecture
+3. Requirements
+4. Python version
+5. Installing dependencies
+6. Creating Telegram Bot
+7. Getting Telegram API credentials
+8. Creating Telethon session
+9. Environment configuration
+10. Running the project
+11. Admin authentication
+12. Project structure
+13. Phase 0 features
+14. Phase 0 limitations
+15. Future roadmap
+16. Troubleshooting
+
+Clearly explain:
+
+The Telethon user account is used for the channel monitoring layer.
+
+The Telegram Bot is used as the administrator control interface.
+
+==================================================
+TESTING
+==================================================
+
+Create basic tests for:
+
+1. Configuration loading
+2. Missing environment variables
+3. Admin authentication
+4. Database initialization
+5. Model creation
+6. Duplicate constraint behavior
+
+Tests must not require real Telegram credentials.
+
+Use mocks where necessary.
+
+==================================================
+GITIGNORE
+==================================================
+
+Create a proper .gitignore.
+
+Include:
+
+.env
+*.session
+*.session-journal
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+logs/
+venv/
+.venv/
+
+Never commit Telegram session files.
+
+==================================================
+PHASE 0 ACCEPTANCE CRITERIA
+==================================================
+
+Phase 0 is complete only when:
+
+[ ] Project starts without architecture errors
+[ ] Configuration loads correctly
+[ ] Missing configuration is detected
+[ ] Database initializes automatically
+[ ] Database models work
+[ ] Admin authentication works
+[ ] Unauthorized users are blocked
+[ ] /start works
+[ ] /status works
+[ ] /help works
+[ ] Telethon client initializes
+[ ] Telethon connection state is detected
+[ ] Listener service starts
+[ ] Application shuts down gracefully
+[ ] SIGINT works
+[ ] SIGTERM works
+[ ] Secrets are not logged
+[ ] Basic tests pass
+[ ] README is complete
+[ ] .gitignore protects credentials/session files
+[ ] No full reposting logic has been prematurely implemented
+
+==================================================
+IMPORTANT DEVELOPMENT RULES
+==================================================
+
+1. DO NOT skip the architecture.
+2. DO NOT put everything inside main.py.
+3. DO NOT hard-code credentials.
+4. DO NOT expose secrets.
+5. DO NOT implement future phases prematurely.
+6. Use async code consistently.
+7. Use type hints.
+8. Keep services modular.
+9. Keep database access separated from Telegram handlers.
+10. Keep Telegram API logic separated from business logic.
+11. Make the system easy to extend.
+12. Avoid unnecessary dependencies.
+
+==================================================
+FINAL RESPONSE AFTER IMPLEMENTATION
+==================================================
+
+After completing the implementation:
+
+1. Show the final project tree.
+2. Explain each major module.
+3. List exactly what Phase 0 implements.
+4. List exactly what Phase 0 does NOT implement.
+5. Explain how to configure .env.
+6. Explain how to create the Telethon session.
+7. Run available tests.
+8. Report test results.
+9. Fix any errors found before finishing.
+10. Clearly state:
+
+"PHASE 0 COMPLETE"
+
+Do not start Phase 1 automatically.
