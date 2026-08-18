@@ -25,6 +25,7 @@ class Settings:
     database_url: str = "sqlite+aiosqlite:///./data/postflow.db"
     log_level: str = "INFO"
     timezone: str = "UTC"
+    database_schema_mode: str = "bootstrap"
 
     @property
     def database_path(self) -> Path | None:
@@ -90,6 +91,15 @@ def _parse_admin_ids(raw: str) -> frozenset[int]:
     return frozenset(values)
 
 
+def _parse_database_schema_mode(raw: str) -> str:
+    value = raw.strip().lower() or "bootstrap"
+    if value not in {"bootstrap", "migrations"}:
+        raise ConfigurationError(
+            "DATABASE_SCHEMA_MODE must be either 'bootstrap' or 'migrations'."
+        )
+    return value
+
+
 def load_settings(
     environ: Mapping[str, str] | None = None,
     dotenv_path: str | os.PathLike[str] | None = ".env",
@@ -108,4 +118,7 @@ def load_settings(
         or "sqlite+aiosqlite:///./data/postflow.db",
         log_level=source.get("LOG_LEVEL", "INFO").strip().upper() or "INFO",
         timezone=source.get("TIMEZONE", "UTC").strip() or "UTC",
+        database_schema_mode=_parse_database_schema_mode(
+            source.get("DATABASE_SCHEMA_MODE", "bootstrap")
+        ),
     )

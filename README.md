@@ -169,6 +169,57 @@ the same source/target relationship.
 The `DATABASE_URL` setting uses a SQLAlchemy URL, so a later PostgreSQL
 migration can use a different async driver without changing service contracts.
 
+## Database migrations (Phase 1.1)
+
+Alembic uses the same `Base.metadata` as the application. The baseline revision
+in `alembic/versions/` creates the current Phase 0 tables without changing their
+integer primary keys or removing any columns. Application runtime remains async;
+Alembic's `env.py` runs migrations through SQLAlchemy's async engine.
+
+For a fresh development database, use the migration-managed flow:
+
+```bash
+rm -f data/postflow.db
+DATABASE_SCHEMA_MODE=migrations alembic upgrade head
+DATABASE_SCHEMA_MODE=migrations python main.py
+```
+
+For local tests and the backwards-compatible development bootstrap, the default
+`DATABASE_SCHEMA_MODE=bootstrap` still uses `Base.metadata.create_all()`.
+Production deployments should run `alembic upgrade head` before starting the
+application and set `DATABASE_SCHEMA_MODE=migrations`; this prevents runtime
+`create_all()` from silently changing the production schema.
+
+To inspect migration state and create a new revision:
+
+```bash
+alembic current
+alembic heads
+alembic revision --autogenerate -m "describe schema change"
+alembic upgrade head
+```
+
+An existing Phase 0 database must be checked before it is adopted. The explicit
+adoption script compares every model table and column first, and only then stamps
+the database at the Alembic head:
+
+```bash
+DATABASE_URL=sqlite+aiosqlite:///./data/postflow.db python scripts/adopt_database.py
+```
+
+If tables or columns are missing, the script fails and does not stamp the database.
+Investigate the reported drift before applying any migration. Never run a
+migration downgrade against a real user database without a tested backup and a
+reviewed rollback plan. The baseline downgrade is intended only for disposable
+verification databases.
+
+Database conventions are timezone-aware UTC timestamps, explicit nullable rules,
+explicit foreign keys and uniqueness constraints, deterministic constraint names,
+and indexes only for justified lookup fields. Existing integer IDs remain unchanged;
+future CMS entities may choose UUIDs independently. SQLite is covered in tests,
+while PostgreSQL readiness is preserved through SQLAlchemy URL configuration and
+portable schema operations; a live PostgreSQL server is not required for this phase.
+
 ## Project structure
 
 ```text
@@ -184,15 +235,21 @@ app/
 │   ├── logger.py               # centralized redacted logging
 │   └── status.py               # safe health snapshot
 ├── database/
-│   ├── database.py             # async SQLAlchemy engine
-│   ├── models.py               # Phase 0 data model
+│   ├── database.py             # async SQLAlchemy engine and schema modes
+│   ├── migration.py            # safe existing-schema compatibility checks
+│   ├── models.py               # shared SQLAlchemy metadata and data model
 │   └── repositories/           # database access boundaries
 ├── services/                   # future processing/service boundaries
 └── telegram/
     ├── client.py               # single Telethon client owner
     ├── listener.py             # event listener foundation
     └── publisher.py            # no-op-by-design publisher boundary
+alembic/
+├── env.py                      # async Alembic environment
+├── script.py.mako              # revision template
+└── versions/                   # migration revisions
 scripts/
+├── adopt_database.py           # validate then stamp an existing schema
 └── create_session.py           # one-time interactive Telethon setup
 tests/
 ├── test_auth.py
@@ -229,7 +286,7 @@ main.py
 - Publishing text, photos, videos, documents, audio, or media groups
 - Automatic phone, OTP, or password prompts during production startup
 - Scheduling jobs
-- PostgreSQL migrations
+- CMS features and PostgreSQL deployment automation beyond the migration foundation
 
 ## Testing
 
