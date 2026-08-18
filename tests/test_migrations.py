@@ -15,6 +15,16 @@ from app.database.migration import require_compatible_schema, validate_existing_
 from app.database.models import Admin, Base
 
 BASELINE_REVISION = "38ec41931a62"
+CMS_HEAD_REVISION = "f344c4272a80"
+CMS_TABLES = {
+    "categories",
+    "collections",
+    "contents",
+    "media",
+    "content_media",
+    "tags",
+    "content_tags",
+}
 EXPECTED_TABLES = {
     "admins",
     "source_channels",
@@ -51,7 +61,7 @@ def run_alembic(database_url: str, *arguments: str) -> subprocess.CompletedProce
 
 @pytest.mark.asyncio
 async def test_model_metadata_contains_expected_tables() -> None:
-    assert set(Base.metadata.tables) == EXPECTED_TABLES
+    assert EXPECTED_TABLES <= set(Base.metadata.tables)
 
 
 @pytest.mark.asyncio
@@ -70,7 +80,8 @@ async def test_fresh_database_upgrade_creates_expected_schema(tmp_path: Path) ->
         await engine.dispose()
 
     assert EXPECTED_TABLES <= tables
-    assert revision == BASELINE_REVISION
+    assert CMS_TABLES <= tables
+    assert revision == CMS_HEAD_REVISION
 
 
 @pytest.mark.asyncio
@@ -130,7 +141,7 @@ async def test_baseline_downgrade_and_upgrade_round_trip(tmp_path: Path) -> None
             revision = await connection.scalar(text("SELECT version_num FROM alembic_version"))
     finally:
         await engine.dispose()
-    assert revision == BASELINE_REVISION
+    assert revision == CMS_HEAD_REVISION
 
 
 @pytest.mark.asyncio
@@ -159,3 +170,50 @@ async def test_migration_mode_rejects_untracked_schema(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="alembic_version"):
         await managed.initialize()
     await managed.close()
+
+
+@pytest.mark.asyncio
+async def test_phase_one_point_one_round_trip_preserves_phase_zero_data(tmp_path: Path) -> None:
+    database_url = f"sqlite+aiosqlite:///{tmp_path / 'phase_roundtrip.db'}"
+    run_alembic(database_url, "upgrade", BASELINE_REVISION)
+
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text("INSERT INTO admins (telegram_user_id, is_active, created_at, updated_at) "
+                     "VALUES (777, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+            )
+    finally:
+        await engine.dispose()
+
+    run_alembic(database_url, "upgrade", "head")
+    run_alembic(database_url, "downgrade", BASELINE_REVISION)
+
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            admin_id = await connection.scalar(
+                text("SELECT telegram_user_id FROM admins WHERE telegram_user_id = 777")
+            )
+            tables_after_downgrade = await connection.run_sync(
+                lambda sync_connection: set(inspect(sync_connection).get_table_names())
+            )
+    finally:
+        await engine.dispose()
+    assert admin_id == 777
+    assert "contents" not in tables_after_downgrade
+    assert "categories" not in tables_after_downgrade
+
+    run_alembic(database_url, "upgrade", "head")
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            admin_id_after_upgrade = await connection.scalar(
+                text("SELECT telegram_user_id FROM admins WHERE telegram_user_id = 777")
+            )
+            revision = await connection.scalar(text("SELECT version_num FROM alembic_version"))
+    finally:
+        await engine.dispose()
+    assert admin_id_after_upgrade == 777
+    assert revision == CMS_HEAD_REVISION

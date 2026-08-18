@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from . import cms_models as _cms_models  # noqa: F401  # register CMS tables
 from .models import Base
 
 
