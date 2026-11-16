@@ -34,7 +34,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "contents",
-        sa.Column("source_channel_id", sa.BigInteger(), nullable=True),
+        sa.Column("source_channel_id", sa.Integer(), nullable=True),
     )
     op.add_column(
         "contents",
@@ -45,7 +45,7 @@ def upgrade() -> None:
         "contents",
         "source_channels",
         ["source_channel_id"],
-        ["telegram_chat_id"],
+        ["id"],
         ondelete="SET NULL",
     )
     op.create_unique_constraint(
