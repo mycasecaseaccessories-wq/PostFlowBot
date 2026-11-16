@@ -2,7 +2,7 @@
 
 from .database import Database
 from .cms_models import (
-    Category, Collection, Content, ContentMedia, ContentStatus, ContentTag,
+    Category, Collection, Content, ContentMedia, ContentOrigin, ContentStatus, ContentTag,
     ContentType, Media, MediaType, RotationMode, Tag,
 )
 from .automation_models import (
@@ -20,7 +20,7 @@ from .models import (
 __all__ = [
     "Admin", "ApprovalStatus", "AuditEvent", "Category", "ChannelRepository",
     "Collection", "Content", "ContentApproval", "ContentMedia", "ContentStatus",
-    "ContentTag", "ContentType", "Base", "Database", "Media", "MediaType",
+    "ContentOrigin", "ContentTag", "ContentType", "Base", "Database", "Media", "MediaType",
     "MemberRole", "PublishAttempt", "PublishJob", "PublishJobStatus",
     "RotationMode", "Schedule", "ScheduleStatus", "RepostHistory", "RepostRule",
     "Tag", "SourceChannel", "SystemSetting", "TargetChannel", "Workspace",
