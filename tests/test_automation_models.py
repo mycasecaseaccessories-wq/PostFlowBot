@@ -10,9 +10,9 @@ from sqlalchemy.orm import configure_mappers
 
 from app.config.settings import load_settings
 from app.database import (
-    Admin, ApprovalStatus, AuditEvent, Category, Content, ContentApproval,
+    Admin, ApprovalStatus, AuditEvent, Category, Content, ContentApproval, ContentOrigin,
     PublishAttempt, PublishJob, PublishJobStatus, Schedule, ScheduleStatus,
-    TargetChannel, Workspace, WorkspaceMember,
+    SourceChannel, TargetChannel, Workspace, WorkspaceMember,
 )
 from app.database.database import Database
 from app.database.models import Base
@@ -139,4 +139,41 @@ async def test_publish_attempt_history_and_audit_event(tmp_path: Path):
         assert saved is not None
         assert saved.outcome == "failed"
         assert audit.actor_admin_id == admin.id
+    await database.close()
+
+
+
+@pytest.mark.asyncio
+async def test_channel_permission_state_and_content_origin_deduplication(tmp_path: Path):
+    database = Database(settings_for(tmp_path / "origins.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500001, title="Authorized source")
+        target = TargetChannel(telegram_chat_id=-1001234500002, title="Target")
+        session.add_all([source, target])
+        await session.flush()
+        target.posting_permission_status = "verified"
+        target.permission_checked_at = datetime.now(UTC)
+        content = Content(
+            title="Imported post",
+            origin=ContentOrigin.CHANNEL_IMPORT.value,
+            source_channel_id=source.id,
+            source_message_id=901,
+        )
+        session.add(content)
+        await session.commit()
+        assert target.posting_permission_status == "verified"
+        assert target.permission_checked_at is not None
+        assert content.origin == "channel_import"
+
+        duplicate = Content(
+            title="Duplicate import",
+            origin=ContentOrigin.CHANNEL_IMPORT.value,
+            source_channel_id=source.id,
+            source_message_id=901,
+        )
+        session.add(duplicate)
+        with pytest.raises(IntegrityError):
+            await session.commit()
+        await session.rollback()
     await database.close()
