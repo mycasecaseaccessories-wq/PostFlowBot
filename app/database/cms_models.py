@@ -180,7 +180,7 @@ class Content(CmsTimestampMixin, SoftDeleteMixin, Base):
         String(32), default=ContentOrigin.MANUAL.value, nullable=False
     )
     source_channel_id: Mapped[int | None] = mapped_column(
-        ForeignKey("source_channels.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("source_channels.id", ondelete="SET NULL"), nullable=True
     )
     source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     status: Mapped[str] = mapped_column(
