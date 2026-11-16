@@ -164,7 +164,7 @@ class PublishAttempt(Base):
     __table_args__ = (
         CheckConstraint("attempt_number > 0", name="ck_publish_attempts_number_positive"),
         UniqueConstraint("publish_job_id", "attempt_number", name="uq_publish_attempts_job_number"),
-        Index("ix_publish_attempts_created", "created_at"),
+        Index("ix_publish_attempts_started", "started_at"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
