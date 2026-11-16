@@ -108,7 +108,7 @@ def upgrade() -> None:
         sa.CheckConstraint("attempt_number > 0", name="ck_publish_attempts_number_positive"),
         sa.UniqueConstraint("publish_job_id", "attempt_number", name="uq_publish_attempts_job_number"),
     )
-    op.create_index("ix_publish_attempts_created", "publish_attempts", ["started_at"])
+    op.create_index("ix_publish_attempts_started", "publish_attempts", ["started_at"])
 
     op.create_table(
         "audit_events",
@@ -128,7 +128,7 @@ def downgrade() -> None:
     op.drop_index("ix_audit_events_created", table_name="audit_events")
     op.drop_index("ix_audit_events_entity", table_name="audit_events")
     op.drop_table("audit_events")
-    op.drop_index("ix_publish_attempts_created", table_name="publish_attempts")
+    op.drop_index("ix_publish_attempts_started", table_name="publish_attempts")
     op.drop_table("publish_attempts")
     op.drop_index("ix_publish_jobs_schedule", table_name="publish_jobs")
     op.drop_index("ix_publish_jobs_claim", table_name="publish_jobs")
