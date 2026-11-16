@@ -15,7 +15,7 @@ from app.database.migration import require_compatible_schema, validate_existing_
 from app.database.models import Admin, Base
 
 BASELINE_REVISION = "38ec41931a62"
-CMS_HEAD_REVISION = "a1b2c3d4e5f6"
+CMS_HEAD_REVISION = "b2c3d4e5f6a7"
 CMS_TABLES = {
     "categories",
     "collections",
