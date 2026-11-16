@@ -11,16 +11,16 @@ Status legend: [x] verified in the current repository; [ ] planned; [!] requires
 - [x] APScheduler lifecycle boundary.
 - [x] Secret-safe configuration validation and logging foundation.
 - [ ] Run the full existing test suite against the feature branch and record the result.
-- [ ] Add a CI workflow for lint, type-check, and tests.
+- [x] Add GitHub Actions test workflow for Python tests.
 
 ## Phase 1 implementation
-- [ ] Add an explicit workspace/role model for dashboard and bot access.
-- [ ] Add content revision and approval models.
-- [ ] Add durable schedule, publish job, and publish attempt models.
-- [ ] Add idempotency constraints and indexes for due-job claiming.
+- [x] Add an explicit workspace/role model for dashboard and bot access.
+- [x] Add content approval persistence model.
+- [x] Add schedule, publish job, and publish attempt persistence models.
+- [x] Add idempotency constraints and indexes for due-job claiming.
 - [ ] Define channel permission verification state and last-checked timestamp.
 - [ ] Define source intake mode: manual, AI-assisted, and authorized channel intake.
-- [ ] Add migration tests using disposable SQLite databases.
+- [x] Add Phase 1 model tests and extend migration-head assertions.
 - [ ] Document restore and migration rollback procedure.
 
 ## External setup required before live Telegram integration
