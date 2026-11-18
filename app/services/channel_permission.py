@@ -29,11 +29,18 @@ class ChannelPermissionService:
                 participant = await client.get_participant(entity, "me")
                 rights = getattr(participant, "admin_rights", None)
                 creator = participant.__class__.__name__.endswith("Creator")
-                if creator or (rights and (
-                    bool(getattr(rights, "post_messages", False))
-                    or bool(getattr(rights, "send_messages", False))
-                )):
+                is_broadcast = bool(getattr(entity, "broadcast", False))
+                is_megagroup = bool(getattr(entity, "megagroup", False))
+                if creator:
                     status = "verified"
+                elif is_broadcast and rights and bool(getattr(rights, "post_messages", False)):
+                    status = "verified"
+                elif is_megagroup:
+                    banned_rights = getattr(participant, "banned_rights", None)
+                    if not bool(getattr(banned_rights, "send_messages", False)):
+                        status = "verified"
+                    else:
+                        error = "The connected Telegram account is restricted from sending messages in this group."
                 else:
                     error = "The connected Telegram account has no channel posting permission."
             except Exception as exc:
