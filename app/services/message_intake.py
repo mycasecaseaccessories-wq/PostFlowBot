@@ -130,6 +130,13 @@ class MessageIntakeService:
                 content.caption_source_message_id = message_id
                 content.formatting_entities = (json.dumps(formatting_entities, ensure_ascii=False) if formatting_entities else None)
 
+            previous_source_links = list((await session.scalars(select(ContentMedia).where(
+                ContentMedia.content_id == content.id,
+                ContentMedia.source_message_id == message_id,
+            ))).all())
+            previous_order = min(
+                (link.display_order for link in previous_source_links), default=None
+            )
             attached = 0
             current_media_ids: set[str] = set()
             for item in items:
@@ -164,17 +171,13 @@ class MessageIntakeService:
                     )
                     session.add(ContentMedia(
                         content_id=content.id, media_id=media.id,
-                        display_order=int(current_order or 0),
+                        display_order=(previous_order if previous_order is not None else int(current_order or 0)),
                         album_group_key=album_key,
                         source_message_id=message_id,
                     ))
                     attached += 1
             if items:
-                previous_links = list((await session.scalars(select(ContentMedia).where(
-                    ContentMedia.content_id == content.id,
-                    ContentMedia.source_message_id == message_id,
-                ))).all())
-                for previous in previous_links:
+                for previous in previous_source_links:
                     if previous.media_id not in current_media_ids:
                         await session.delete(previous)
 
