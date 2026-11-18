@@ -289,3 +289,65 @@ async def test_telegram_media_is_downloaded_and_persisted_with_checksum(tmp_path
     assert payload.media[0].storage_key is not None
     assert payload.media[0].sha256 == hashlib.sha256(b"postflow-media").hexdigest()
     await database.close()
+
+
+@pytest.mark.asyncio
+async def test_pending_media_is_recovered_from_original_telegram_message(tmp_path: Path):
+    from app.services.media_storage import LocalMediaStorage
+
+    database = Database(settings_for(tmp_path / "retry-media.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500601, title="Source")
+        target = TargetChannel(
+            telegram_chat_id=-1001234500602, title="Target",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target])
+        await session.flush()
+        session.add(RepostRule(source_channel_id=source.id, target_channel_id=target.id))
+        await session.commit()
+        chat_id = source.telegram_chat_id
+
+    descriptor = MediaDescriptor(
+        telegram_file_id="retry-file-id",
+        telegram_file_unique_id="retry-file-unique-id",
+        media_type="video",
+        original_file_name="clip.mp4",
+        file_size=5,
+    )
+    intake = MessageIntakeService(
+        database.session_factory,
+        LocalMediaStorage(tmp_path / "retry-volume", max_bytes=1024),
+    )
+    await intake.ingest(
+        source_chat_id=chat_id, message_id=1001, text=None,
+        content_type="video", media_items=[descriptor],
+    )
+
+    class FailingClient:
+        async def download_media(self, message, file):
+            raise RuntimeError("temporary Telegram download failure")
+
+    with pytest.raises(RuntimeError, match="temporary Telegram"):
+        await intake.store_telegram_media(
+            client=FailingClient(), message=object(), descriptor=descriptor
+        )
+
+    class RecoveringClient:
+        async def get_messages(self, entity, ids):
+            assert entity == chat_id and ids == 1001
+            return object()
+
+        async def download_media(self, message, file):
+            Path(file).write_bytes(b"video")
+            return file
+
+    assert await intake.retry_pending_media(client=RecoveringClient(), limit=10) == 1
+    async with database.session() as session:
+        media = await session.scalar(select(Media))
+        assert media.storage_status == "stored"
+        assert media.storage_attempts == 2
+        assert media.storage_error is None
+        assert intake.media_storage.resolve(media.storage_key).read_bytes() == b"video"
+    await database.close()
