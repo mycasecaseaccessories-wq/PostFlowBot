@@ -55,7 +55,8 @@ class Application:
             settings.media_storage_dir, max_bytes=settings.media_max_bytes
         )
         self.message_intake = MessageIntakeService(
-            self.database.session_factory, self.media_storage
+            self.database.session_factory, self.media_storage,
+            media_retry_max_attempts=settings.media_retry_max_attempts,
         )
         self.permission_service = ChannelPermissionService(self.database.session_factory, self.telethon)
         self.listener = MessageListenerService(
@@ -97,6 +98,18 @@ class Application:
             self.status_service.telethon_connected = self.telethon.is_connected()
             self.status_service.telethon_authorized = self.telethon.is_authorized()
             await self.listener.start()
+            self.scheduler.add_job(
+                self.message_intake.retry_pending_media,
+                "interval",
+                minutes=self.settings.media_retry_interval_minutes,
+                kwargs={"client": self.telethon.get_client(), "limit": 20},
+                id="pending-media-recovery",
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
+            if not self.scheduler.running:
+                self.scheduler.start()
             self._started = True
             logger.info("Application startup sequence complete")
         except Exception:
