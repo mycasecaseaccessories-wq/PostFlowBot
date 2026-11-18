@@ -40,6 +40,7 @@ class MessageIntakeService:
                 SourceChannel.is_active.is_(True)))
             if source is None:
                 return IntakeResult(False, reason="source_not_registered")
+            source_id = source.id
             existing = await session.scalar(select(Content).where(
                 Content.source_channel_id == source.id,
                 Content.source_message_id == message_id))
@@ -59,7 +60,7 @@ class MessageIntakeService:
             except IntegrityError:
                 await session.rollback()
                 duplicate_id = await session.scalar(select(Content.id).where(
-                    Content.source_channel_id == source.id,
+                    Content.source_channel_id == source_id,
                     Content.source_message_id == message_id,
                 ))
                 if duplicate_id is not None:
