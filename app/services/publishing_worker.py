@@ -245,6 +245,8 @@ async def retry_uncertain_publish_job(
         raise LookupError(f"Publish job {job_id} was not found.")
     if job.status != PublishJobStatus.UNCERTAIN.value:
         raise ValueError("Only uncertain publish jobs can be manually recovered.")
+    if job.attempts >= job.max_attempts:
+        raise ValueError("The retry limit is exhausted; an administrator must explicitly raise max_attempts first.")
     now = datetime.now(UTC)
     previous_error = job.last_error
     job.status = PublishJobStatus.QUEUED.value
@@ -258,6 +260,57 @@ async def retry_uncertain_publish_job(
         entity_type="publish_job",
         entity_id=job.id,
         details_json=json.dumps({"previous_error": previous_error}),
+    ))
+    await session.flush()
+    return job
+
+
+
+async def mark_stale_processing_job_uncertain(
+    session: AsyncSession,
+    job_id: str,
+    *,
+    operator_admin_id: int,
+    stale_after: timedelta = timedelta(minutes=10),
+) -> PublishJob:
+    """Move a crashed worker's stale processing job to manual-review state."""
+    if stale_after.total_seconds() <= 0:
+        raise ValueError("stale_after must be positive.")
+    job = await session.get(PublishJob, job_id)
+    if job is None:
+        raise LookupError(f"Publish job {job_id} was not found.")
+    now = datetime.now(UTC)
+    if job.status != PublishJobStatus.PROCESSING.value or job.locked_at is None:
+        raise ValueError("Only locked processing jobs can be marked uncertain.")
+    locked_at = job.locked_at
+    if locked_at.tzinfo is None:
+        locked_at = locked_at.replace(tzinfo=UTC)
+    if locked_at > now - stale_after:
+        raise ValueError("The processing lock is not stale yet.")
+
+    attempt = await session.scalar(
+        select(PublishAttempt)
+        .where(
+            PublishAttempt.publish_job_id == job.id,
+            PublishAttempt.attempt_number == job.attempts,
+        )
+    )
+    if attempt is not None and attempt.outcome == PublishAttemptOutcome.PROCESSING.value:
+        attempt.outcome = PublishAttemptOutcome.UNCERTAIN.value
+        attempt.error_code = "WORKER_INTERRUPTED"
+        attempt.error_message = "Worker stopped while delivery outcome was unknown; verify the target channel before retrying."
+        attempt.finished_at = now
+
+    job.status = PublishJobStatus.UNCERTAIN.value
+    job.last_error = "Worker stopped while delivery outcome was unknown; operator review required."
+    job.locked_at = None
+    job.updated_at = now
+    session.add(AuditEvent(
+        actor_admin_id=operator_admin_id,
+        action="publish_job.mark_uncertain",
+        entity_type="publish_job",
+        entity_id=job.id,
+        details_json=json.dumps({"reason": "stale_processing_lock"}),
     ))
     await session.flush()
     return job
