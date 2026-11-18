@@ -126,6 +126,7 @@ class MessageIntakeService:
                 content.caption_source_message_id = message_id
 
             attached = 0
+            current_media_ids: set[str] = set()
             for item in items:
                 media = None
                 if item.telegram_file_unique_id:
@@ -148,6 +149,7 @@ class MessageIntakeService:
                     )
                     session.add(media)
                     await session.flush()
+                current_media_ids.add(media.id)
                 link = await session.get(ContentMedia, (content.id, media.id))
                 if link is None:
                     current_order = await session.scalar(
@@ -162,6 +164,14 @@ class MessageIntakeService:
                         source_message_id=message_id,
                     ))
                     attached += 1
+            if items:
+                previous_links = list((await session.scalars(select(ContentMedia).where(
+                    ContentMedia.content_id == content.id,
+                    ContentMedia.source_message_id == message_id,
+                ))).all())
+                for previous in previous_links:
+                    if previous.media_id not in current_media_ids:
+                        await session.delete(previous)
 
             if not created:
                 await session.commit()
@@ -267,12 +277,12 @@ class MessageIntakeService:
         if self.media_storage is None:
             return False
         async with self.session_factory() as session:
-            media = await session.scalar(select(Media).where(
-                or_(
-                    Media.telegram_file_unique_id == descriptor.telegram_file_unique_id,
-                    Media.telegram_file_id == descriptor.telegram_file_id,
+            media_query = [Media.telegram_file_id == descriptor.telegram_file_id]
+            if descriptor.telegram_file_unique_id:
+                media_query.append(
+                    Media.telegram_file_unique_id == descriptor.telegram_file_unique_id
                 )
-            ))
+            media = await session.scalar(select(Media).where(or_(*media_query)))
             if media is None:
                 return False
             if media.storage_status == "stored" and media.storage_key:
