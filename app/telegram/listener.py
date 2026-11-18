@@ -46,14 +46,14 @@ class MessageListenerService:
             return
         message = event.message
         media = getattr(message, "media", None)
-        if media is not None and not message.message:
-            logger.info("Media-only source message %s deferred; media intake adapter is not enabled", message.id)
+        if media is not None:
+            logger.info("Media source message %s deferred; media and album intake adapter is not enabled", message.id)
             return
         result = await self.intake_service.ingest(
             source_chat_id=int(event.chat_id),
             message_id=int(message.id),
             text=message.message,
-            content_type="text" if media is None else "photo",
+            content_type="text",
             grouped_id=getattr(message, "grouped_id", None),
         )
         if result.accepted:
