@@ -180,6 +180,36 @@ def build_router(status_service: StatusService, source_service: Any | None = Non
         except Exception as exc:
             await message.answer(f"Permission check failed: {str(exc)[:500]}")
 
+    @router.message(Command("source_on"))
+    async def source_on_handler(message: Message) -> None:
+        if source_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /source_on SOURCE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /source_on SOURCE_ID")
+            return
+        try:
+            await source_service.enable_source(int(parts[1]), message.from_user.id)
+            await message.answer("Source enabled. Re-enable its routes separately with /route_on.")
+        except Exception as exc:
+            await message.answer(f"Could not enable source: {str(exc)[:500]}")
+
+    @router.message(Command("target_on"))
+    async def target_on_handler(message: Message) -> None:
+        if target_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /target_on TARGET_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /target_on TARGET_ID")
+            return
+        try:
+            await target_service.enable_target(int(parts[1]), message.from_user.id)
+            await message.answer("Target enabled. Run /target_check TARGET_ID before enabling routes.")
+        except Exception as exc:
+            await message.answer(f"Could not enable target: {str(exc)[:500]}")
+
     @router.message(Command("source_off"))
     async def source_off_handler(message: Message) -> None:
         if source_service is None or not message.from_user or not message.text:
