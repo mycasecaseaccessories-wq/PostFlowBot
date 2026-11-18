@@ -155,6 +155,7 @@ class Content(CmsTimestampMixin, SoftDeleteMixin, Base):
     __table_args__ = (
         CheckConstraint("priority >= 0", name="ck_contents_priority_nonnegative"),
         UniqueConstraint("source_channel_id", "source_message_id", name="uq_contents_source_message"),
+        Index("ix_contents_source_origin", "origin", "source_channel_id"),
         Index("ix_contents_status_type", "status", "content_type"),
         Index("ix_contents_category_collection", "category_id", "collection_id"),
         Index("ix_contents_created_at", "created_at"),
