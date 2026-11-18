@@ -112,8 +112,11 @@ async def test_route_delay_is_applied_to_publish_job(tmp_path: Path):
     assert result.queued_jobs == 1
     async with database.session() as session:
         job = await session.scalar(select(PublishJob))
-        assert before + timedelta(seconds=120) <= job.run_at
-        assert job.run_at <= after + timedelta(seconds=120)
+        run_at = job.run_at
+        if run_at.tzinfo is None:
+            run_at = run_at.replace(tzinfo=UTC)
+        assert before + timedelta(seconds=120) <= run_at
+        assert run_at <= after + timedelta(seconds=120)
     await database.close()
 
 
