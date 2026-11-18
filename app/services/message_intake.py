@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -129,7 +129,7 @@ class MessageIntakeService:
                 if link is None:
                     session.add(ContentMedia(
                         content_id=content.id, media_id=media.id,
-                        display_order=len(content.media_links),
+                        display_order=int(await session.scalar(\n                            select(func.count(ContentMedia.media_id)).where(\n                                ContentMedia.content_id == content.id\n                            )\n                        ) or 0),
                         album_group_key=album_key,
                     ))
                     attached += 1
