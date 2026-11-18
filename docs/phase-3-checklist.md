@@ -25,7 +25,7 @@
 ## Safety and verification
 - [x] Add credential-free tests for media intake, storage, retry, album reconciliation, route filters, and the latest Alembic schema revision.
 - [x] Add mocked Telethon media descriptor tests for photos, videos, voice, and generic documents.
-- [ ] Add full mocked listener event tests for new/edit/delete and album event variations.
+- [x] Add mocked listener event tests for new/edit/delete and album event flows.
 - [ ] Perform staging-only media round-trip tests before enabling a publisher.
 - [ ] Keep live posting and production deployment disabled.
 
