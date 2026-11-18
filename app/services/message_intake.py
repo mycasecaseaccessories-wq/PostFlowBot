@@ -401,6 +401,8 @@ class MessageIntakeService:
                     content.updated_at = now
                     await session.commit()
                     return True
+            elif content.source_message_id != message_id:
+                return False
 
             content.is_active = False
             content.is_archived = True
