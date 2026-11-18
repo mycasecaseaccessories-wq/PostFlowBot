@@ -14,6 +14,7 @@ from app.database.repositories.channels import ChannelRepository
 from app.database.repositories.routing import RoutingRepository
 from app.services.channel_service import SourceChannelService, TargetChannelService
 from app.services.routing_service import RoutingService
+from app.services.message_intake import MessageIntakeService
 from app.telegram.client import TelethonClientService
 from app.telegram.listener import MessageListenerService
 from app.telegram.resolver import ChannelResolver
@@ -48,8 +49,9 @@ class Application:
             self.source_service,
             self.target_service,
         )
+        self.message_intake = MessageIntakeService(self.database.session_factory)
         self.listener = MessageListenerService(
-            self.telethon.get_client(), self.status_service
+            self.telethon.get_client(), self.status_service, self.message_intake
         )
         self.bot = AdminBotService(
             settings,
