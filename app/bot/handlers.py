@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+from html import escape
 
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
@@ -35,6 +36,7 @@ def build_router(
     target_service: Any | None = None,
     routing_service: Any | None = None,
     permission_service: Any | None = None,
+    media_service: Any | None = None,
 ) -> Router:
     router = Router(name="admin")
 
@@ -222,6 +224,27 @@ def build_router(
         except Exception as exc:
             await message.answer(f"Could not preview route: {str(exc)[:500]}")
 
+    @router.message(Command("media_status"))
+    async def media_status_handler(message: Message) -> None:
+        if media_service is None:
+            await message.answer("Media storage status is unavailable.")
+            return
+        try:
+            summary = await media_service.media_storage_status(failed_limit=5)
+            lines = [
+                "Media storage status",
+                f"Stored: {summary['stored']}",
+                f"Pending: {summary['pending']}",
+                f"Failed: {summary['failed']}",
+            ]
+            for item in summary["failed_items"]:
+                lines.append(
+                    f"• {escape(item['filename'])}: {escape(item['error'])}"
+                )
+            await message.answer("\n".join(lines))
+        except Exception as exc:
+            await message.answer(f"Could not read media status: {escape(str(exc)[:300])}")
+
     @router.message(Command("target_check"))
     async def target_check_handler(message: Message) -> None:
         if permission_service is None or not message.text:
@@ -369,6 +392,7 @@ def build_router(
             "/route_add SOURCE_ID TARGET_ID\n/route_on ROUTE_ID\n/route_off ROUTE_ID\n"
             "/route_filters ROUTE_ID usernames=on links=off keywords=spam,scam\n"
             "/route_preview ROUTE_ID text to preview\n"
+            "/media_status\n"
             "/target_check TARGET_ID\n/source_on SOURCE_ID\n/source_off SOURCE_ID\n"
             "/target_on TARGET_ID\n/target_off TARGET_ID"
         )
