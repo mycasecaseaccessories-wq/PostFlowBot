@@ -36,6 +36,10 @@ class RoutingService:
         target = await self.target_service.get_target(target_id)
         if source.telegram_chat_id == target.telegram_chat_id:
             raise ConflictError("A source channel cannot route to itself.")
+        if not source.is_active:
+            raise ConflictError("Enable the source channel before creating a route.")
+        if not target.is_active:
+            raise ConflictError("Enable the target channel before creating a route.")
 
     async def create_route(self, source_id: int, target_id: int, admin_id: int) -> RepostRule:
         await self.validate_route(source_id, target_id)
