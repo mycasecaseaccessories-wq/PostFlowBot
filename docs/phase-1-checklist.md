@@ -26,7 +26,15 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - [x] Make the additive channel/content migration compatible with SQLite and PostgreSQL using Alembic batch operations.
 - [x] Document backup, restore, and migration rollback procedure.
 - [x] Verify the latest full CI run passes after the SQLite migration fix (GitHub Actions Run #46, job `test`, conclusion `success`, associated with commit `f34ca53b937b9f4de86fead4ec54c38d09d9b1a0`).
-- [ ] Implement the long-running worker loop, delivery-result handling, and operator-led recovery for uncertain in-flight sends before enabling scheduled delivery.
+- [x] Implement an injectable supervised queue worker with continuous polling and graceful stop-event handling.
+- [x] Persist successful Telegram message IDs and publish-attempt outcomes.
+- [x] Retry only failures explicitly confirmed as not delivered, using bounded exponential backoff.
+- [x] Move ambiguous network outcomes to an UNCERTAIN state; never automatically resend them.
+- [x] Add operator-audited recovery for uncertain jobs and stale processing locks.
+- [x] Block delivery unless the target channel posting permission is verified.
+- [x] Add worker tests for success, retry, uncertain delivery, stale-lock recovery, and permission gating.
+- [ ] Wire the worker to the real Telegram publisher and application lifecycle after the Telegram publishing adapter is implemented in the later integration phase.
+- [ ] Run and verify GitHub Actions CI for the latest worker implementation commits.
 
 ## External setup required before live Telegram integration
 - [!] Create a dedicated Telegram bot with @BotFather and configure its token as a server-side secret.
@@ -44,10 +52,11 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - No post is sent to a target until an administrator explicitly enables that target and the publishing feature.
 
 ## Verification record
-- Latest CI: Run #46 (`44257106120`) — Python CI / `test` job completed successfully for commit `f34ca53b937b9f4de86fead4ec54c38d09d9b1a0`.
+- Previous baseline CI: Run #48 (`44257412695`) — Python CI / `test` job completed successfully before the worker implementation.
+- Latest worker implementation commits: `2f6584d895ce254c336dee26e7be2d4bde4fb7bd` and `e735d724922c1887cd9b98950362cb73064e1de2`; CI verification is pending.
 - Pull request: https://github.com/mycasecaseaccessories-wq/PostFlowBot/pull/1
 - Previous CI run: 43910019000 — 35 passed, 4 migration tests failed because SQLite does not support direct ALTER TABLE constraint creation.
 - Migration fix commit: 6ef9e01008c45aea8d216c5d40483b1205257d3c
-- Current CI status: latest full GitHub Actions Python CI job is green (Run #46). This verifies the repository test workflow only; it does not verify live Telegram delivery, production PostgreSQL, hosting, secrets, or deployment.
+- Current CI status: the worker implementation has not yet been verified by a completed CI run. The last confirmed green run predates these worker changes.
 - Verification environment: GitHub Actions, Python 3.11, SQLite test databases.
 - No production database migration or Telegram publishing was run.
