@@ -363,6 +363,35 @@ class MessageIntakeService:
             raise
 
 
+    async def media_storage_status(self, *, failed_limit: int = 5) -> dict:
+        """Return aggregate storage counts and a short list of failed objects."""
+        async with self.session_factory() as session:
+            rows = (await session.execute(
+                select(Media.storage_status, func.count(Media.id)).group_by(
+                    Media.storage_status
+                )
+            )).all()
+            failed = (await session.execute(
+                select(Media.id, Media.original_file_name, Media.storage_error)
+                .where(Media.storage_status == "failed")
+                .order_by(Media.updated_at.desc())
+                .limit(max(1, min(int(failed_limit), 20)))
+            )).all()
+            counts = {str(status): int(count) for status, count in rows}
+            return {
+                "pending": counts.get("pending", 0),
+                "stored": counts.get("stored", 0),
+                "failed": counts.get("failed", 0),
+                "failed_items": [
+                    {
+                        "id": str(media_id),
+                        "filename": filename or "unnamed media",
+                        "error": (error or "No error detail")[:180],
+                    }
+                    for media_id, filename, error in failed
+                ],
+            }
+
     async def retry_pending_media(self, *, client, limit: int = 20) -> int:
         """Retry media downloads using the original channel/message as source."""
         async with self.session_factory() as session:
