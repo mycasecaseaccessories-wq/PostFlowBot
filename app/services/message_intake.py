@@ -17,7 +17,7 @@ from app.database.cms_models import (
 )
 from app.database.models import RepostRule, SourceChannel, TargetChannel
 from app.services.content_transform import transform_text
-from app.services.media_storage import LocalMediaStorage
+from app.services.media_storage import LocalMediaStorage, MediaTooLargeError
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,7 +322,7 @@ class MessageIntakeService:
 
         try:
             if descriptor.file_size and descriptor.file_size > self.media_storage.max_bytes:
-                raise ValueError(
+                raise MediaTooLargeError(
                     f"Media exceeds configured limit ({descriptor.file_size} bytes)."
                 )
             with tempfile.TemporaryDirectory(prefix="postflow-media-") as temp_dir:
@@ -349,7 +349,7 @@ class MessageIntakeService:
             async with self.session_factory() as session:
                 media = await session.get(Media, media_id)
                 if media is not None:
-                    media.storage_status = "pending"
+                    media.storage_status = "failed" if isinstance(exc, MediaTooLargeError) else "pending"
                     media.storage_error = f"{type(exc).__name__}: {exc}"[:1000]
                     await session.commit()
             raise
