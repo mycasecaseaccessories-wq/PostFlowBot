@@ -4,7 +4,8 @@
 - [x] Implement Telethon-backed text publishing.
 - [x] Implement single-media publishing from verified local persistent storage.
 - [x] Implement grouped media albums as one Telegram send_file call.
-- [x] Return the first Telegram message ID for durable delivery receipt storage.
+- [x] Return every Telegram message ID created by a text, single-media, or album send.
+- [x] Persist every album message ID as an individual delivery receipt linked to its publish attempt.
 - [x] Classify Telegram FloodWait responses as confirmed retryable failures.
 - [x] Classify Telegram RPC rejections as permanent failures.
 - [x] Treat transport timeouts/connection failures as uncertain; never auto-retry ambiguous sends.
@@ -17,8 +18,8 @@
 - [x] Wire the supervised worker into application startup and graceful shutdown.
 - [x] Require explicit `PUBLISHING_ENABLED=true`; default remains false.
 - [ ] Add full staging Telegram send/receipt verification with an authorized test account.
-- [ ] Add operational UI/commands for inspecting and resolving failed/uncertain jobs.
-- [ ] Add persistent multi-message receipt storage for albums; current schema stores the first album message ID only.
+- [x] Add admin commands to list jobs, inspect attempt/receipt history, recover stale processing locks, and manually retry failed/uncertain jobs with audit events.
+- [x] Add migration-backed per-message receipt storage for albums.
 
 ## Safety
 Production hosting and live posting remain disabled by default. Do not enable publishing against production channels until staging verification, operational recovery controls, and all remaining project phases are complete.
