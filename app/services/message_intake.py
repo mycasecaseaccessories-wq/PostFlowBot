@@ -105,7 +105,8 @@ class MessageIntakeService:
                         return IntakeResult(False, duplicate=True, content_id=duplicate_id,
                                             reason="duplicate_source_message")
                     raise
-            elif body and not content.caption:
+            caption_added = bool(not created and body and not content.caption)
+            if caption_added:
                 # Telegram albums commonly put the caption on only one item.
                 content.caption = body
                 content.body_text = body
@@ -150,8 +151,15 @@ class MessageIntakeService:
 
             if not created:
                 await session.commit()
-                return IntakeResult(attached > 0 or bool(body), content_id=content.id,
-                                    reason="album_item_attached" if attached else "album_item_duplicate")
+                if attached == 0 and not caption_added:
+                    return IntakeResult(
+                        False, duplicate=True, content_id=content.id,
+                        reason="duplicate_source_message",
+                    )
+                return IntakeResult(
+                    True, content_id=content.id,
+                    reason="album_item_attached" if attached else "album_caption_updated",
+                )
 
             routes = list((await session.scalars(
                 select(RepostRule).join(TargetChannel,
