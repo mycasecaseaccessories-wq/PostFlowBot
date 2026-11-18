@@ -56,6 +56,11 @@ class MessageListenerService:
         logger.info("Message listener stopped")
 
     @staticmethod
+    def _formatting_entities(message) -> list[dict]:
+        entities = getattr(message, "entities", None) or ()
+        return [entity.to_dict() for entity in entities if hasattr(entity, "to_dict")]
+
+    @staticmethod
     def _media_descriptor(message) -> MediaDescriptor | None:
         media = getattr(message, "photo", None) or getattr(message, "document", None)
         if media is None:
@@ -118,6 +123,7 @@ class MessageListenerService:
             content_type="text" if not media_items else media_items[0].media_type,
             grouped_id=getattr(message, "grouped_id", None),
             media_items=media_items,
+            formatting_entities=self._formatting_entities(message),
         )
         if result.content_id and descriptor is not None:
             try:
@@ -145,6 +151,7 @@ class MessageListenerService:
             source_chat_id=int(event.chat_id),
             message_id=int(message.id),
             text=message.message,
+            formatting_entities=self._formatting_entities(message),
         )
         descriptor = self._media_descriptor(message)
         if descriptor is not None:
@@ -155,6 +162,7 @@ class MessageListenerService:
                 content_type=descriptor.media_type,
                 grouped_id=getattr(message, "grouped_id", None),
                 media_items=[descriptor],
+                formatting_entities=self._formatting_entities(message),
             )
             if result.content_id:
                 try:
