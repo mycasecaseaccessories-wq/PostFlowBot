@@ -174,6 +174,18 @@ class MessageIntakeService:
                         await session.delete(previous)
 
             if not created:
+                if grouped_id is not None:
+                    settle_until = datetime.now(UTC) + timedelta(seconds=5)
+                    queued_jobs = list((await session.scalars(select(PublishJob).where(
+                        PublishJob.content_id == content.id,
+                        PublishJob.status == PublishJobStatus.QUEUED.value,
+                    ))).all())
+                    for queued_job in queued_jobs:
+                        existing_run_at = queued_job.run_at
+                        if existing_run_at is not None and existing_run_at.tzinfo is None:
+                            existing_run_at = existing_run_at.replace(tzinfo=UTC)
+                        queued_job.run_at = max(existing_run_at, settle_until) if existing_run_at else settle_until
+                        queued_job.updated_at = datetime.now(UTC)
                 await session.commit()
                 if attached == 0 and not caption_added:
                     return IntakeResult(
@@ -325,6 +337,62 @@ class MessageIntakeService:
                     media.storage_error = f"{type(exc).__name__}: {exc}"[:1000]
                     await session.commit()
             raise
+
+
+    async def retry_pending_media(self, *, client, limit: int = 20) -> int:
+        """Retry media downloads using the original channel/message as source."""
+        async with self.session_factory() as session:
+            rows = (await session.execute(
+                select(Media, SourceChannel.telegram_chat_id, ContentMedia.source_message_id)
+                .join(ContentMedia, ContentMedia.media_id == Media.id)
+                .join(Content, Content.id == ContentMedia.content_id)
+                .join(SourceChannel, SourceChannel.id == Content.source_channel_id)
+                .where(
+                    Media.storage_status == "pending",
+                    Content.is_archived.is_(False),
+                    ContentMedia.source_message_id.is_not(None),
+                )
+                .order_by(Media.created_at.asc())
+                .limit(max(1, min(int(limit), 100)))
+            )).all()
+            pending = [
+                (
+                    int(chat_id), int(message_id),
+                    MediaDescriptor(
+                        telegram_file_id=media.telegram_file_id,
+                        telegram_file_unique_id=media.telegram_file_unique_id,
+                        media_type=media.media_type,
+                        original_file_name=media.original_file_name,
+                        mime_type=media.mime_type,
+                        file_size=media.file_size,
+                        width=media.width,
+                        height=media.height,
+                        duration=media.duration,
+                        storage_backend=media.storage_backend,
+                        storage_key=media.storage_key,
+                        sha256=media.sha256,
+                        stored_size=media.stored_size,
+                    ),
+                )
+                for media, chat_id, message_id in rows
+            ]
+        recovered = 0
+        seen: set[tuple[str, int, int]] = set()
+        for chat_id, message_id, descriptor in pending:
+            identity = (descriptor.telegram_file_id, chat_id, message_id)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            try:
+                message = await client.get_messages(chat_id, ids=message_id)
+                if message is not None and await self.store_telegram_media(
+                    client=client, message=message, descriptor=descriptor
+                ):
+                    recovered += 1
+            except Exception:
+                # Keep the pending status and error detail for the next retry.
+                continue
+        return recovered
 
     async def update_source_message(
         self, *, source_chat_id: int, message_id: int, text: str | None,
