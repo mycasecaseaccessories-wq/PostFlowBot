@@ -65,3 +65,17 @@ def test_settings_does_not_expose_secret_values_in_missing_variable_error() -> N
         load_settings(environment, dotenv_path=None)
     assert "123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk" not in str(error.value)
     assert "BOT_TOKEN" in str(error.value)
+
+def test_media_storage_and_retry_settings_are_configurable() -> None:
+    environment = valid_environment()
+    environment.update({
+        "MEDIA_STORAGE_DIR": "/mnt/postflow/media",
+        "MEDIA_MAX_BYTES": "1048576",
+        "MEDIA_RETRY_MAX_ATTEMPTS": "3",
+        "MEDIA_RETRY_INTERVAL_MINUTES": "7",
+    })
+    settings = load_settings(environment, dotenv_path=None)
+    assert settings.media_storage_dir == "/mnt/postflow/media"
+    assert settings.media_max_bytes == 1048576
+    assert settings.media_retry_max_attempts == 3
+    assert settings.media_retry_interval_minutes == 7
