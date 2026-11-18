@@ -15,6 +15,7 @@ from app.database.repositories.routing import RoutingRepository
 from app.services.channel_service import SourceChannelService, TargetChannelService
 from app.services.routing_service import RoutingService
 from app.services.message_intake import MessageIntakeService
+from app.services.publishing_admin import PublishJobAdminService
 from app.services.media_storage import LocalMediaStorage
 from app.services.publishing_worker import PublishingWorker
 from app.services.channel_permission import ChannelPermissionService
@@ -60,6 +61,7 @@ class Application:
             self.database.session_factory, self.media_storage,
             media_retry_max_attempts=settings.media_retry_max_attempts,
         )
+        self.publishing_admin = PublishJobAdminService(self.database.session_factory)
         self.permission_service = ChannelPermissionService(self.database.session_factory, self.telethon)
         self.listener = MessageListenerService(
             self.telethon.get_client(), self.status_service, self.message_intake
@@ -79,6 +81,7 @@ class Application:
             self.routing_service,
             self.permission_service,
             self.message_intake,
+            self.publishing_admin,
         )
         self.scheduler = AsyncIOScheduler(timezone=settings.timezone)
         self._shutdown_event = asyncio.Event()
