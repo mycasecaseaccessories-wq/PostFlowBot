@@ -7,6 +7,7 @@ moves to UNCERTAIN and requires an explicit operator decision.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -102,11 +103,20 @@ class PublishingWorker:
                 title=loaded.content.title,
                 text=loaded.content.caption or loaded.content.body_text or loaded.content.title or "",
             )
+            await session.flush()
             attempt_id = attempt.id
             job_id = loaded.id
             attempt_number = loaded.attempts
             max_attempts = loaded.max_attempts
+            permission_verified = loaded.target_channel.posting_permission_status == "verified"
             await session.commit()
+
+        if not permission_verified:
+            await self._record_permanent_failure(
+                job_id, attempt_id,
+                PermanentPublishError("Target channel posting permission is not verified."),
+            )
+            return True
 
         try:
             message_id = await self.publisher.publish(payload)
@@ -247,7 +257,7 @@ async def retry_uncertain_publish_job(
         action="publish_job.manual_retry",
         entity_type="publish_job",
         entity_id=job.id,
-        details_json=(f'{{"previous_error": {previous_error!r}}}')[:4000],
+        details_json=json.dumps({"previous_error": previous_error}),
     ))
     await session.flush()
     return job
