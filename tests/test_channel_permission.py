@@ -24,7 +24,7 @@ def settings_for(path: Path):
 
 class FakeClient:
     async def get_entity(self, chat_id):
-        return SimpleNamespace(id=chat_id)
+        return SimpleNamespace(id=chat_id, broadcast=True, megagroup=False)
 
     async def get_participant(self, entity, participant):
         return SimpleNamespace(admin_rights=SimpleNamespace(post_messages=True))
