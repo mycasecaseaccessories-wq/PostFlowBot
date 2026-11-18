@@ -160,3 +160,62 @@ async def test_edit_updates_imported_content_and_delete_cancels_queued_jobs(tmp_
         assert content.is_archived is True
         assert job.status == PublishJobStatus.CANCELLED.value
     await database.close()
+
+@pytest.mark.asyncio
+async def test_source_edit_updates_imported_content_without_duplicate_jobs(tmp_path: Path):
+    database = Database(settings_for(tmp_path / "edit.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500021, title="Source")
+        target = TargetChannel(
+            telegram_chat_id=-1001234500022, title="Target",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target])
+        await session.flush()
+        session.add(RepostRule(source_channel_id=source.id, target_channel_id=target.id))
+        await session.commit()
+        chat_id = source.telegram_chat_id
+
+    intake = MessageIntakeService(database.session_factory)
+    created = await intake.ingest(source_chat_id=chat_id, message_id=99, text="Original")
+    assert created.accepted
+    assert await intake.update_source_message(
+        source_chat_id=chat_id, message_id=99, text="Edited text"
+    )
+    async with database.session() as session:
+        content = await session.get(Content, created.content_id)
+        jobs = list((await session.scalars(select(PublishJob))).all())
+        assert content.caption == "Edited text"
+        assert content.body_text == "Edited text"
+        assert len(jobs) == 1
+    await database.close()
+
+
+@pytest.mark.asyncio
+async def test_source_delete_archives_content_and_cancels_queued_jobs(tmp_path: Path):
+    database = Database(settings_for(tmp_path / "delete.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500031, title="Source")
+        target = TargetChannel(
+            telegram_chat_id=-1001234500032, title="Target",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target])
+        await session.flush()
+        session.add(RepostRule(source_channel_id=source.id, target_channel_id=target.id))
+        await session.commit()
+        chat_id = source.telegram_chat_id
+
+    intake = MessageIntakeService(database.session_factory)
+    created = await intake.ingest(source_chat_id=chat_id, message_id=109, text="To be deleted")
+    assert created.queued_jobs == 1
+    assert await intake.delete_source_message(source_chat_id=chat_id, message_id=109)
+    async with database.session() as session:
+        content = await session.get(Content, created.content_id)
+        job = await session.scalar(select(PublishJob))
+        assert content.is_archived is True
+        assert content.is_active is False
+        assert job.status == "cancelled"
+    await database.close()
