@@ -40,19 +40,22 @@ def upgrade() -> None:
         "contents",
         sa.Column("source_message_id", sa.BigInteger(), nullable=True),
     )
-    op.create_foreign_key(
-        "fk_contents_source_channel_id_source_channels",
-        "contents",
-        "source_channels",
-        ["source_channel_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
-    op.create_unique_constraint(
-        "uq_contents_source_message",
-        "contents",
-        ["source_channel_id", "source_message_id"],
-    )
+
+    # SQLite cannot ALTER TABLE to add named constraints. Batch mode uses a
+    # safe copy-and-recreate strategy on SQLite and ordinary ALTER on PostgreSQL.
+    with op.batch_alter_table("contents") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_contents_source_channel_id_source_channels",
+            "source_channels",
+            ["source_channel_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+        batch_op.create_unique_constraint(
+            "uq_contents_source_message",
+            ["source_channel_id", "source_message_id"],
+        )
+
     op.create_index(
         "ix_contents_source_origin",
         "contents",
@@ -62,15 +65,18 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_contents_source_origin", table_name="contents")
-    op.drop_constraint("uq_contents_source_message", "contents", type_="unique")
-    op.drop_constraint(
-        "fk_contents_source_channel_id_source_channels",
-        "contents",
-        type_="foreignkey",
-    )
-    op.drop_column("contents", "source_message_id")
-    op.drop_column("contents", "source_channel_id")
-    op.drop_column("contents", "origin")
-    op.drop_column("target_channels", "permission_error")
-    op.drop_column("target_channels", "permission_checked_at")
-    op.drop_column("target_channels", "posting_permission_status")
+
+    with op.batch_alter_table("contents") as batch_op:
+        batch_op.drop_constraint("uq_contents_source_message", type_="unique")
+        batch_op.drop_constraint(
+            "fk_contents_source_channel_id_source_channels",
+            type_="foreignkey",
+        )
+        batch_op.drop_column("source_message_id")
+        batch_op.drop_column("source_channel_id")
+        batch_op.drop_column("origin")
+
+    with op.batch_alter_table("target_channels") as batch_op:
+        batch_op.drop_column("permission_error")
+        batch_op.drop_column("permission_checked_at")
+        batch_op.drop_column("posting_permission_status")
