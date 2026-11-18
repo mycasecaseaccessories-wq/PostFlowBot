@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -77,7 +77,7 @@ class MessageIntakeService:
                     target_channel_id=route.target_channel_id,
                     idempotency_key=key,
                     status=PublishJobStatus.QUEUED.value,
-                    run_at=now,
+                    run_at=now + timedelta(seconds=max(0, int(route.delay_seconds or 0))),
                 ))
                 queued += 1
             await session.commit()
