@@ -302,6 +302,10 @@ async def test_telegram_media_is_downloaded_and_persisted_with_checksum(tmp_path
     assert payload is not None
     assert payload.media[0].storage_key is not None
     assert payload.media[0].sha256 == hashlib.sha256(b"postflow-media").hexdigest()
+    summary = await intake.media_storage_status()
+    assert summary["stored"] == 1
+    assert summary["pending"] == 0
+    assert summary["failed"] == 0
     await database.close()
 
 
