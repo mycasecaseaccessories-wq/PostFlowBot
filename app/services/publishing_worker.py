@@ -33,6 +33,8 @@ class PublishPayload:
     content_id: str
     title: str | None
     text: str
+    media: tuple = ()
+    formatting_entities: tuple[dict, ...] = ()
 
 
 class Publisher(Protocol):
@@ -61,6 +63,7 @@ class PublishingWorker:
         poll_interval_seconds: float = 2.0,
         retry_base_seconds: int = 15,
         retry_max_seconds: int = 900,
+        intake_service=None,
     ) -> None:
         if poll_interval_seconds <= 0 or retry_base_seconds <= 0 or retry_max_seconds <= 0:
             raise ValueError("Worker intervals and retry limits must be positive.")
@@ -69,6 +72,7 @@ class PublishingWorker:
         self.poll_interval_seconds = poll_interval_seconds
         self.retry_base_seconds = retry_base_seconds
         self.retry_max_seconds = retry_max_seconds
+        self.intake_service = intake_service
 
     async def run_once(self) -> bool:
         """Claim and process one due job. Returns False when the queue is empty."""
@@ -108,6 +112,7 @@ class PublishingWorker:
             job_id = loaded.id
             attempt_number = loaded.attempts
             max_attempts = loaded.max_attempts
+            target_channel_id = loaded.target_channel_id
             permission_verified = (
                 loaded.target_channel.is_active
                 and loaded.target_channel.posting_permission_status == "verified"
@@ -115,6 +120,24 @@ class PublishingWorker:
                 and loaded.content.is_active
             )
             await session.commit()
+
+        if permission_verified and self.intake_service is not None:
+            route_payload = await self.intake_service.build_publish_payload(
+                content_id=payload.content_id,
+                target_channel_id=target_channel_id,
+            )
+            if route_payload is None:
+                permission_verified = False
+            else:
+                payload = PublishPayload(
+                    job_id=payload.job_id,
+                    destination_chat_id=payload.destination_chat_id,
+                    content_id=payload.content_id,
+                    title=payload.title,
+                    text=route_payload.text,
+                    media=route_payload.media,
+                    formatting_entities=route_payload.formatting_entities,
+                )
 
         if not permission_verified:
             await self._record_permanent_failure(
