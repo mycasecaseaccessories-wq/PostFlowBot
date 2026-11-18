@@ -11,7 +11,8 @@
 - [x] Persist storage backend/key, SHA-256 checksum, byte size, pending/stored/failed status, attempt count, and last error in the CMS.
 - [ ] Add an S3-compatible object-storage adapter and retention/garbage-collection policy.
 - [x] Retry pending media downloads on listener startup by re-fetching the original source message.
-- [ ] Add scheduled retry/backoff and operator visibility for permanently inaccessible source media.
+- [x] Schedule bounded media retries on an interval, with a configurable attempt cap.
+- [ ] Add operator visibility for permanently inaccessible source media.
 - [x] Reset queued album publication time when another album item arrives (5-second quiet window).
 - [x] Track each album media item against its original Telegram message ID.
 - [x] Reconcile edits/replacements/deletions for individual album items; archive only after the final media item is removed.
@@ -26,8 +27,8 @@
 - [x] Add credential-free tests for media intake, storage, retry, album reconciliation, route filters, and the latest Alembic schema revision.
 - [x] Add mocked Telethon media descriptor tests for photos, videos, voice, and generic documents.
 - [x] Add mocked listener event tests for new/edit/delete and album event flows.
-- [ ] Perform staging-only media round-trip tests before enabling a publisher.
+- [ ] Perform staging-only Telegram media round-trip verification.
 - [ ] Keep live posting and production deployment disabled.
 
 ## Storage note
-The application downloads source media and stores bytes atomically under `MEDIA_STORAGE_DIR`, with SHA-256 and size recorded in the database. The default `./data/media` path is durable only when hosting mounts a persistent volume there. No cloud object-storage adapter is enabled yet. Transient download failures remain `pending` with an error and attempt count; the listener retries them at startup by fetching the original source message. Files exceeding the configured size limit are marked `failed` and are not retried automatically. Scheduled backoff/retry and an operator dashboard remain future work.
+The application downloads source media and stores bytes atomically under `MEDIA_STORAGE_DIR`, with SHA-256 and size recorded in the database. The default `./data/media` path is durable only when hosting mounts a persistent volume there. No cloud object-storage adapter is enabled yet. Transient download failures remain `pending` with an error and attempt count; the listener retries them at startup and on a configurable interval when Telethon is authorized. After `MEDIA_RETRY_MAX_ATTEMPTS` failures, media is marked `failed`; files exceeding the configured size limit are marked `failed` immediately. An operator dashboard and retention/garbage collection remain future work.
