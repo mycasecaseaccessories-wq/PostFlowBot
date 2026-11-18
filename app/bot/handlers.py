@@ -37,6 +37,7 @@ def build_router(
     routing_service: Any | None = None,
     permission_service: Any | None = None,
     media_service: Any | None = None,
+    publishing_service: Any | None = None,
 ) -> Router:
     router = Router(name="admin")
 
@@ -245,6 +246,117 @@ def build_router(
         except Exception as exc:
             await message.answer(f"Could not read media status: {escape(str(exc)[:300])}")
 
+
+    @router.message(Command("publish_jobs"))
+    async def publish_jobs_handler(message: Message) -> None:
+        if publishing_service is None:
+            await message.answer("Publishing job controls are unavailable.")
+            return
+        parts = (message.text or "").split()
+        if len(parts) > 2:
+            await message.answer("Usage: /publish_jobs [queued|processing|published|failed|uncertain|cancelled]")
+            return
+        status = parts[1].lower() if len(parts) == 2 else None
+        try:
+            jobs = await publishing_service.list_jobs(status=status, limit=8)
+            if not jobs:
+                await message.answer("No publishing jobs found.")
+                return
+            lines = ["Recent publishing jobs" + (f" · {escape(status)}" if status else "")]
+            for job in jobs:
+                lines.append(
+                    f"\n{escape(job['status'].upper())} · {escape(job['content_title'][:55])}"
+                    f"\nTarget: {escape(job['target_title'][:45])}"
+                    f"\nID: <code>{escape(job['id'])}</code>"
+                    f"\nAttempts: {job['attempts']}/{job['max_attempts']}"
+                )
+            lines.append("\nUse /publish_job JOB_ID for details.")
+            await message.answer("\n".join(lines))
+        except Exception as exc:
+            await message.answer(f"Could not list publishing jobs: {escape(str(exc)[:300])}")
+
+    @router.message(Command("publish_job"))
+    async def publish_job_handler(message: Message) -> None:
+        if publishing_service is None or not message.text:
+            await message.answer("Usage: /publish_job JOB_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /publish_job JOB_ID")
+            return
+        try:
+            job = await publishing_service.get_job(parts[1])
+            if job is None:
+                await message.answer("Publishing job not found.")
+                return
+            lines = [
+                "Publishing job details",
+                f"ID: <code>{escape(job['id'])}</code>",
+                f"Status: {escape(job['status'].upper())}",
+                f"Content: {escape(job['content_title'] or 'Untitled')}",
+                f"Target: {escape(job['target_title'])} ({job['target_chat_id']})",
+                f"Attempts: {job['attempts']}/{job['max_attempts']}",
+                f"Primary Telegram message ID: {job['telegram_message_id'] or '—'}",
+                f"Last error: {escape((job['last_error'] or '—')[:700])}",
+                "Attempt history:",
+            ]
+            for attempt in job["attempt_history"][-5:]:
+                lines.append(
+                    f"• #{attempt['number']} {escape(attempt['outcome'])}"
+                    + (f" · {escape((attempt['error'] or '')[:180])}" if attempt["error"] else "")
+                )
+            receipt_ids = [str(item["message_id"]) for item in job["receipts"]]
+            lines.append("Delivery receipts: " + (", ".join(receipt_ids) if receipt_ids else "none recorded"))
+            await message.answer("\n".join(lines))
+        except Exception as exc:
+            await message.answer(f"Could not read publishing job: {escape(str(exc)[:300])}")
+
+    @router.message(Command("publish_retry"))
+    async def publish_retry_handler(message: Message) -> None:
+        if publishing_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /publish_retry JOB_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer(
+                "Usage: /publish_retry JOB_ID\n"
+                "Only use after manually checking the target channel and confirming the post was not delivered."
+            )
+            return
+        try:
+            job = await publishing_service.retry_job(
+                parts[1], operator_telegram_user_id=message.from_user.id
+            )
+            await message.answer(
+                f"Job <code>{escape(job.id)}</code> re-queued. "
+                "The action was recorded in the audit log."
+            )
+        except Exception as exc:
+            await message.answer(f"Could not retry job: {escape(str(exc)[:400])}")
+
+    @router.message(Command("publish_recover"))
+    async def publish_recover_handler(message: Message) -> None:
+        if publishing_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /publish_recover JOB_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer(
+                "Usage: /publish_recover JOB_ID\n"
+                "Only processing jobs locked for at least 10 minutes can be recovered."
+            )
+            return
+        try:
+            job = await publishing_service.recover_stale_job(
+                parts[1], operator_telegram_user_id=message.from_user.id
+            )
+            await message.answer(
+                f"Job <code>{escape(job.id)}</code> moved to UNCERTAIN. "
+                "Check the target channel before using /publish_retry."
+            )
+        except Exception as exc:
+            await message.answer(f"Could not recover job: {escape(str(exc)[:400])}")
+
     @router.message(Command("target_check"))
     async def target_check_handler(message: Message) -> None:
         if permission_service is None or not message.text:
@@ -392,7 +504,8 @@ def build_router(
             "/route_add SOURCE_ID TARGET_ID\n/route_on ROUTE_ID\n/route_off ROUTE_ID\n"
             "/route_filters ROUTE_ID usernames=on links=off keywords=spam,scam\n"
             "/route_preview ROUTE_ID text to preview\n"
-            "/media_status\n"
+            "/media_status\n/publish_jobs [status]\n/publish_job JOB_ID\n"
+            "/publish_recover JOB_ID\n/publish_retry JOB_ID (after checking target channel)\n"
             "/target_check TARGET_ID\n/source_on SOURCE_ID\n/source_off SOURCE_ID\n"
             "/target_on TARGET_ID\n/target_off TARGET_ID"
         )

@@ -203,3 +203,25 @@ class AuditEvent(Base):
     details_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
     actor: Mapped[Admin | None] = relationship()
+
+
+class PublishDeliveryReceipt(Base):
+    """Every Telegram message created by a publish attempt, including albums."""
+
+    __tablename__ = "publish_delivery_receipts"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "message_ordinal", name="uq_publish_receipts_attempt_ordinal"),
+        UniqueConstraint("attempt_id", "telegram_message_id", name="uq_publish_receipts_attempt_message"),
+        Index("ix_publish_delivery_receipts_job", "publish_job_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    publish_job_id: Mapped[str] = mapped_column(
+        ForeignKey("publish_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("publish_attempts.id", ondelete="CASCADE"), nullable=False
+    )
+    telegram_message_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

@@ -19,6 +19,7 @@ from sqlalchemy.orm import joinedload
 from app.database.automation_models import (
     AuditEvent,
     PublishAttempt,
+    PublishDeliveryReceipt,
     PublishAttemptOutcome,
     PublishJob,
     PublishJobStatus,
@@ -37,8 +38,18 @@ class PublishPayload:
     formatting_entities: tuple[dict, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class PublishResult:
+    """Telegram message IDs created by one send (one ID for text, many for albums)."""
+    message_ids: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if not self.message_ids or any(int(value) <= 0 for value in self.message_ids):
+            raise ValueError("PublishResult requires one or more positive Telegram message IDs.")
+
+
 class Publisher(Protocol):
-    async def publish(self, payload: PublishPayload) -> int:
+    async def publish(self, payload: PublishPayload) -> int | PublishResult:
         """Send a post and return Telegram's resulting message ID."""
 
 
@@ -147,7 +158,7 @@ class PublishingWorker:
             return True
 
         try:
-            message_id = await self.publisher.publish(payload)
+            publish_result = await self.publisher.publish(payload)
         except RetryablePublishError as exc:
             await self._record_retryable_failure(
                 job_id, attempt_id, attempt_number, max_attempts, exc
@@ -164,7 +175,7 @@ class PublishingWorker:
             # Unknown exceptions are conservative: do not risk an automatic duplicate.
             await self._record_uncertain(job_id, attempt_id, exc)
         else:
-            await self._record_success(job_id, attempt_id, message_id)
+            await self._record_success(job_id, attempt_id, publish_result)
         return True
 
     async def run_forever(self, stop_event: asyncio.Event) -> None:
@@ -180,21 +191,38 @@ class PublishingWorker:
             except asyncio.TimeoutError:
                 pass
 
-    async def _record_success(self, job_id: str, attempt_id: str, message_id: int) -> None:
+    async def _record_success(
+        self, job_id: str, attempt_id: str, result: int | PublishResult,
+    ) -> None:
         now = datetime.now(UTC)
+        message_ids = result.message_ids if isinstance(result, PublishResult) else (int(result),)
+        if not message_ids or any(int(value) <= 0 for value in message_ids):
+            await self._record_uncertain(
+                job_id, attempt_id,
+                UncertainPublishError("Telegram returned no valid message IDs after a send."),
+            )
+            return
         async with self.session_factory() as session:
             job = await session.get(PublishJob, job_id)
             attempt = await session.get(PublishAttempt, attempt_id)
             if job is None or attempt is None:
                 raise RuntimeError("Publish job or attempt disappeared before result persistence.")
             job.status = PublishJobStatus.PUBLISHED.value
-            job.telegram_message_id = message_id
+            job.telegram_message_id = int(message_ids[0])
             job.locked_at = None
             job.last_error = None
             job.updated_at = now
             attempt.outcome = PublishAttemptOutcome.PUBLISHED.value
-            attempt.telegram_message_id = message_id
+            attempt.telegram_message_id = int(message_ids[0])
             attempt.finished_at = now
+            for ordinal, telegram_message_id in enumerate(message_ids):
+                session.add(PublishDeliveryReceipt(
+                    publish_job_id=job_id,
+                    attempt_id=attempt_id,
+                    telegram_message_id=int(telegram_message_id),
+                    message_ordinal=ordinal,
+                    created_at=now,
+                ))
             await session.commit()
 
     async def _record_retryable_failure(

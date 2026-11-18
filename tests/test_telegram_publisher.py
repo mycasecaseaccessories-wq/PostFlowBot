@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services.publishing_worker import PermanentPublishError, RetryablePublishError
+from app.services.publishing_worker import PermanentPublishError, PublishResult, RetryablePublishError
 from app.telegram.publisher import TelegramPublisher
 
 
@@ -49,7 +49,7 @@ async def test_publisher_sends_text_and_returns_message_id(tmp_path: Path):
         text="Hello",
         media=(),
     )
-    assert await publisher.publish(payload) == 101
+    assert (await publisher.publish(payload)).message_ids == (101,)
     assert client.calls[0][0:3] == ("text", -100123, "Hello")
 
 
@@ -62,7 +62,7 @@ async def test_publisher_sends_single_stored_media_with_caption(tmp_path: Path):
     payload = SimpleNamespace(
         destination_chat_id=-100123, text="Caption", media=(media,)
     )
-    assert await publisher.publish(payload) == 201
+    assert (await publisher.publish(payload)).message_ids == (201,)
     call = client.calls[0]
     assert call[0] == "media"
     assert call[2] == str(tmp_path / "photo.jpg")
@@ -82,7 +82,7 @@ async def test_publisher_sends_album_as_one_telegram_media_group(tmp_path: Path)
     payload = SimpleNamespace(
         destination_chat_id=-100123, text="Album caption", media=media
     )
-    assert await publisher.publish(payload) == 201
+    assert (await publisher.publish(payload)).message_ids == (201, 202)
     call = client.calls[0]
     assert call[0] == "media"
     assert call[2] == [str(tmp_path / "one.jpg"), str(tmp_path / "two.jpg")]
@@ -122,7 +122,7 @@ async def test_publisher_rebuilds_preserved_telegram_formatting_entities(tmp_pat
         media=(),
         formatting_entities=({"_": "MessageEntityBold", "offset": 0, "length": 4},),
     )
-    assert await publisher.publish(payload) == 101
+    assert (await publisher.publish(payload)).message_ids == (101,)
     entities = client.calls[0][3]["formatting_entities"]
     assert len(entities) == 1
     assert isinstance(entities[0], MessageEntityBold)

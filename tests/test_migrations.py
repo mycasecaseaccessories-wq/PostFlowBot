@@ -15,7 +15,7 @@ from app.database.migration import require_compatible_schema, validate_existing_
 from app.database.models import Admin, Base
 
 BASELINE_REVISION = "38ec41931a62"
-CMS_HEAD_REVISION = "d4e5f6a7b8c9"
+CMS_HEAD_REVISION = "e5f6a7b8c9d0"
 CMS_TABLES = {
     "categories",
     "collections",
@@ -32,6 +32,7 @@ AUTOMATION_TABLES = {
     "schedules",
     "publish_jobs",
     "publish_attempts",
+    "publish_delivery_receipts",
     "audit_events",
 }
 EXPECTED_TABLES = {
@@ -103,6 +104,15 @@ async def test_fresh_database_upgrade_creates_expected_schema(tmp_path: Path) ->
                     for column in inspect(sync_connection).get_columns("content_media")
                 }
             )
+            receipt_columns = await connection.run_sync(
+                lambda sync_connection: {
+                    column["name"]
+                    for column in inspect(sync_connection).get_columns("publish_delivery_receipts")
+                }
+            )
+            receipt_uniques = await connection.run_sync(
+                lambda sync_connection: inspect(sync_connection).get_unique_constraints("publish_delivery_receipts")
+            )
             target_columns = await connection.run_sync(
                 lambda sync_connection: {
                     column["name"]
@@ -125,6 +135,9 @@ async def test_fresh_database_upgrade_creates_expected_schema(tmp_path: Path) ->
     assert {"origin", "source_channel_id", "source_message_id", "caption_source_message_id", "formatting_entities"} <= contents_columns
     assert {"storage_backend", "storage_key", "sha256", "stored_size", "storage_status", "storage_attempts", "storage_error"} <= media_columns
     assert {"source_message_id"} <= content_media_columns
+    assert {"publish_job_id", "attempt_id", "telegram_message_id", "message_ordinal", "created_at"} <= receipt_columns
+    assert any(item["column_names"] == ["attempt_id", "message_ordinal"] for item in receipt_uniques)
+    assert any(item["column_names"] == ["attempt_id", "telegram_message_id"] for item in receipt_uniques)
     assert {
         "posting_permission_status",
         "permission_checked_at",
