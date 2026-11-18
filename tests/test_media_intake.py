@@ -47,7 +47,8 @@ async def test_media_only_message_is_persisted_and_queued(tmp_path: Path):
         width=800,
         height=600,
     )
-    result = await MessageIntakeService(database.session_factory).ingest(
+    intake = MessageIntakeService(database.session_factory)
+    result = await intake.ingest(
         source_chat_id=chat_id, message_id=501, text=None,
         content_type="photo", media_items=[descriptor],
     )
@@ -64,6 +65,12 @@ async def test_media_only_message_is_persisted_and_queued(tmp_path: Path):
         assert media.width == 800 and media.height == 600
         assert link.content_id == content.id
         assert job.content_id == content.id
+    payload = await intake.build_publish_payload(
+        content_id=result.content_id, target_channel_id=target.id
+    )
+    assert payload is not None
+    assert payload.text == ""
+    assert len(payload.media) == 1
     await database.close()
 
 
@@ -106,4 +113,58 @@ async def test_album_items_share_one_content_and_one_publish_job(tmp_path: Path)
         assert len(links) == 2
         assert {link.album_group_key for link in links} == {"777"}
         assert len(jobs) == 1
+    payload = await intake.build_publish_payload(
+        content_id=first.content_id, target_channel_id=target.id
+    )
+    assert payload is not None
+    assert [item.telegram_file_id for item in payload.media] == [
+        "album-photo-1", "album-photo-2"
+    ]
+    await database.close()
+
+
+@pytest.mark.asyncio
+async def test_route_filter_is_applied_only_to_target_payload(tmp_path: Path):
+    database = Database(settings_for(tmp_path / "route-filter.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500301, title="Source")
+        target_a = TargetChannel(
+            telegram_chat_id=-1001234500302, title="A",
+            posting_permission_status="verified",
+        )
+        target_b = TargetChannel(
+            telegram_chat_id=-1001234500303, title="B",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target_a, target_b])
+        await session.flush()
+        session.add_all([
+            RepostRule(
+                source_channel_id=source.id, target_channel_id=target_a.id,
+                remove_usernames=True, remove_links=True, remove_keywords="sale",
+            ),
+            RepostRule(source_channel_id=source.id, target_channel_id=target_b.id),
+        ])
+        await session.commit()
+        chat_id = source.telegram_chat_id
+        target_a_id, target_b_id = target_a.id, target_b.id
+
+    intake = MessageIntakeService(database.session_factory)
+    result = await intake.ingest(
+        source_chat_id=chat_id, message_id=701,
+        text="Sale from @sample_user https://example.com",
+    )
+    payload_a = await intake.build_publish_payload(
+        content_id=result.content_id, target_channel_id=target_a_id
+    )
+    payload_b = await intake.build_publish_payload(
+        content_id=result.content_id, target_channel_id=target_b_id
+    )
+    assert payload_a is not None and payload_b is not None
+    assert payload_a.text == "from"
+    assert payload_b.text == "Sale from @sample_user https://example.com"
+    async with database.session() as session:
+        content = await session.get(Content, result.content_id)
+        assert content.caption == "Sale from @sample_user https://example.com"
     await database.close()
