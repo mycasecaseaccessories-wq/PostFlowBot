@@ -1,6 +1,6 @@
 # Phase 1 — Foundation Checklist
 
-Status legend: [x] verified in the current repository; [ ] planned; [!] requires owner-provided setup or external credential.
+Status legend: [x] implemented and covered by repository tests; [ ] not yet implemented/verified; [!] requires owner-provided setup or external credential.
 
 ## Baseline audit
 - [x] Async Python application entry point and lifecycle orchestration.
@@ -10,7 +10,6 @@ Status legend: [x] verified in the current repository; [ ] planned; [!] requires
 - [x] CMS persistence models for categories, collections, content, media, and tags.
 - [x] APScheduler lifecycle boundary.
 - [x] Secret-safe configuration validation and logging foundation.
-- [x] Run the full test suite on the feature branch: GitHub Actions passed (38 tests).
 - [x] Add GitHub Actions test workflow for Python tests.
 
 ## Phase 1 implementation
@@ -18,10 +17,14 @@ Status legend: [x] verified in the current repository; [ ] planned; [!] requires
 - [x] Add content approval persistence model.
 - [x] Add schedule, publish job, and publish attempt persistence models.
 - [x] Add idempotency constraints and indexes for due-job claiming.
-- [ ] Define channel permission verification state and last-checked timestamp.
-- [ ] Define source intake mode: manual, AI-assisted, and authorized channel intake.
+- [x] Define target-channel posting permission state, last-checked timestamp, and error detail.
+- [x] Define content intake origin: manual, AI-assisted, and authorized channel import.
+- [x] Prevent duplicate imported messages with a source-channel/message uniqueness constraint.
 - [x] Add Phase 1 model tests and extend migration-head assertions.
-- [ ] Document restore and migration rollback procedure.
+- [x] Make the additive channel/content migration compatible with SQLite and PostgreSQL using Alembic batch operations.
+- [x] Document backup, restore, and migration rollback procedure.
+- [ ] Verify the latest full CI run passes after the SQLite migration fix.
+- [ ] Add and verify durable worker claiming/recovery behavior before enabling scheduled delivery.
 
 ## External setup required before live Telegram integration
 - [!] Create a dedicated Telegram bot with @BotFather and configure its token as a server-side secret.
@@ -34,13 +37,14 @@ Status legend: [x] verified in the current repository; [ ] planned; [!] requires
 - Existing tests pass without live Telegram credentials.
 - Migrations apply and roll back on a disposable test database without data loss.
 - Every target channel has an explicit permission status.
-- A scheduled publish can be claimed once only, even if a worker restarts or retries.
+- Duplicate source-channel messages cannot create duplicate imported content.
+- Publish jobs have a unique idempotency key.
 - No post is sent to a target until an administrator explicitly enables that target and the publishing feature.
-
 
 ## Verification record
 - Pull request: https://github.com/mycasecaseaccessories-wq/PostFlowBot/pull/1
-- Latest CI run: 43908202906
-- Result: success — 38 passed in 29.61s
-- Verification environment: GitHub Actions, Python 3.11, SQLite test databases
+- Previous CI run: 43910019000 — 35 passed, 4 migration tests failed because SQLite does not support direct ALTER TABLE constraint creation.
+- Migration fix commit: 6ef9e01008c45aea8d216c5d40483b1205257d3c
+- Current CI status: awaiting verification; do not treat Phase 1 as complete until green.
+- Verification environment: GitHub Actions, Python 3.11, SQLite test databases.
 - No production database migration or Telegram publishing was run.
