@@ -58,7 +58,16 @@ class MessageIntakeService:
                 await session.flush()
             except IntegrityError:
                 await session.rollback()
-                return IntakeResult(False, duplicate=True, reason="duplicate_source_message")
+                duplicate_id = await session.scalar(select(Content.id).where(
+                    Content.source_channel_id == source.id,
+                    Content.source_message_id == message_id,
+                ))
+                if duplicate_id is not None:
+                    return IntakeResult(
+                        False, duplicate=True, content_id=duplicate_id,
+                        reason="duplicate_source_message",
+                    )
+                raise
 
             routes = list((await session.scalars(
                 select(RepostRule).join(TargetChannel,
