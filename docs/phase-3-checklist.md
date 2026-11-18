@@ -8,7 +8,7 @@
 - [x] Group messages sharing Telegram grouped_id into one album content record.
 - [x] Preserve album caption and avoid creating one publish job per album item.
 - [x] Download media bytes and atomically persist them under a configured persistent filesystem volume.
-- [x] Persist storage backend/key, SHA-256 checksum, byte size, retry status, and attempt count in the CMS.
+- [x] Persist storage backend/key, SHA-256 checksum, byte size, pending/stored/failed status, attempt count, and last error in the CMS.
 - [ ] Add an S3-compatible object-storage adapter and retention/garbage-collection policy.
 - [x] Retry pending media downloads on listener startup by re-fetching the original source message.
 - [ ] Add scheduled retry/backoff and operator visibility for permanently inaccessible source media.
@@ -24,9 +24,9 @@
 
 ## Safety and verification
 - [x] Add credential-free tests for media intake, storage, retry, album reconciliation, route filters, and the latest Alembic schema revision.
-- [ ] Add mocked Telethon listener tests for photos, videos, documents, audio/voice, and albums.
+- [x] Add mocked Telethon media descriptor tests for photos, videos, voice, and generic documents.\n- [ ] Add full mocked listener event tests for new/edit/delete and album event variations.
 - [ ] Perform staging-only media round-trip tests before enabling a publisher.
 - [ ] Keep live posting and production deployment disabled.
 
 ## Storage note
-The application downloads source media and stores bytes atomically under `MEDIA_STORAGE_DIR`, with SHA-256 and size recorded in the database. The default `./data/media` path is durable only when hosting mounts a persistent volume there. No cloud object-storage adapter is enabled yet. Failed downloads remain `pending` with an error and attempt count; the listener retries them at startup by fetching the original source message. Scheduled backoff/retry and an operator dashboard remain future work.
+The application downloads source media and stores bytes atomically under `MEDIA_STORAGE_DIR`, with SHA-256 and size recorded in the database. The default `./data/media` path is durable only when hosting mounts a persistent volume there. No cloud object-storage adapter is enabled yet. Transient download failures remain `pending` with an error and attempt count; the listener retries them at startup by fetching the original source message. Files exceeding the configured size limit are marked `failed` and are not retried automatically. Scheduled backoff/retry and an operator dashboard remain future work.
