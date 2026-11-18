@@ -42,7 +42,8 @@ def build_router(status_service: StatusService, source_service: Any | None = Non
             f"{'Running' if status_service.listener_running else 'Stopped'}\n\n"
             "Channel commands: /sources /targets /routes\n"
             "/source_add @username\n/target_add @username\n"
-            "/route_add SOURCE_ID TARGET_ID\n/target_check TARGET_ID",
+            "/route_add SOURCE_ID TARGET_ID\n/target_check TARGET_ID\n"
+            "/source_on SOURCE_ID\n/target_on TARGET_ID\n/route_on ROUTE_ID\n/route_off ROUTE_ID",
             reply_markup=admin_keyboard(),
         )
 
@@ -209,13 +210,110 @@ def build_router(status_service: StatusService, source_service: Any | None = Non
         except Exception as exc:
             await message.answer(f"Could not disable target: {str(exc)[:500]}")
 
+    @router.message(Command("route_off"))
+    async def route_off_handler(message: Message) -> None:
+        if routing_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /route_off ROUTE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /route_off ROUTE_ID")
+            return
+        try:
+            await routing_service.disable_route(int(parts[1]), message.from_user.id)
+            await message.answer("Route disabled.")
+        except Exception as exc:
+            await message.answer(f"Could not disable route: {str(exc)[:500]}")
+
+    @router.message(Command("route_on"))
+    async def route_on_handler(message: Message) -> None:
+        if routing_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /route_on ROUTE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /route_on ROUTE_ID")
+            return
+        try:
+            await routing_service.enable_route(int(parts[1]), message.from_user.id)
+            await message.answer("Route enabled.")
+        except Exception as exc:
+            await message.answer(f"Could not enable route: {str(exc)[:500]}")
+
+    @router.message(Command("source_on"))
+    async def source_on_handler(message: Message) -> None:
+        if source_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /source_on SOURCE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /source_on SOURCE_ID")
+            return
+        try:
+            await source_service.enable_source(int(parts[1]), message.from_user.id)
+            await message.answer("Source enabled. Review its routes before relying on intake.")
+        except Exception as exc:
+            await message.answer(f"Could not enable source: {str(exc)[:500]}")
+
+    @router.message(Command("target_on"))
+    async def target_on_handler(message: Message) -> None:
+        if target_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /target_on TARGET_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /target_on TARGET_ID")
+            return
+        try:
+            target = await target_service.enable_target(int(parts[1]), message.from_user.id)
+            await message.answer(
+                f"Target enabled: {target.title or target.telegram_chat_id}. "
+                "It will receive new queue jobs only after permission is verified."
+            )
+        except Exception as exc:
+            await message.answer(f"Could not enable target: {str(exc)[:500]}")
+
+    @router.message(Command("source_refresh"))
+    async def source_refresh_handler(message: Message) -> None:
+        if source_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /source_refresh SOURCE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /source_refresh SOURCE_ID")
+            return
+        try:
+            source = await source_service.refresh_source(int(parts[1]), message.from_user.id)
+            await message.answer(f"Source refreshed: {source.title or source.telegram_chat_id}")
+        except Exception as exc:
+            await message.answer(f"Could not refresh source: {str(exc)[:500]}")
+
+    @router.message(Command("target_refresh"))
+    async def target_refresh_handler(message: Message) -> None:
+        if target_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /target_refresh TARGET_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /target_refresh TARGET_ID")
+            return
+        try:
+            target = await target_service.refresh_target(int(parts[1]), message.from_user.id)
+            await message.answer(
+                f"Target refreshed: {target.title or target.telegram_chat_id}. "
+                "Run /target_check again to verify current posting permission."
+            )
+        except Exception as exc:
+            await message.answer(f"Could not refresh target: {str(exc)[:500]}")
+
     @router.message(Command("help"))
     async def help_handler(message: Message) -> None:
         await message.answer(
             "/start /status /help\n/sources /targets /routes\n"
             "/source_add @username\n/target_add @username\n"
             "/route_add SOURCE_ID TARGET_ID\n/target_check TARGET_ID\n"
-            "/source_off SOURCE_ID\n/target_off TARGET_ID"
+            "/source_off SOURCE_ID\n/target_off TARGET_ID\n/source_on SOURCE_ID\n/target_on TARGET_ID\n"
+            "/route_on ROUTE_ID\n/route_off ROUTE_ID\n/source_refresh SOURCE_ID\n/target_refresh TARGET_ID"
         )
 
     @router.message(lambda message: message.text in CMS_PLACEHOLDER_BUTTONS or message.text == "📢 Channels")
