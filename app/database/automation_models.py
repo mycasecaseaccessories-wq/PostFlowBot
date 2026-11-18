@@ -51,7 +51,16 @@ class PublishJobStatus(StrEnum):
     PROCESSING = "processing"
     PUBLISHED = "published"
     FAILED = "failed"
+    UNCERTAIN = "uncertain"
     CANCELLED = "cancelled"
+
+
+class PublishAttemptOutcome(StrEnum):
+    PROCESSING = "processing"
+    PUBLISHED = "published"
+    RETRYABLE_FAILURE = "retryable_failure"
+    PERMANENT_FAILURE = "permanent_failure"
+    UNCERTAIN = "uncertain"
 
 
 class Workspace(Base):
@@ -193,4 +202,3 @@ class AuditEvent(Base):
     entity_id: Mapped[str | None] = mapped_column(String(100))
     details_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
-    actor: Mapped[Admin | None] = relationship()
