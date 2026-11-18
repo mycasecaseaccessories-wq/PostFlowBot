@@ -154,6 +154,7 @@ async def test_route_filter_is_applied_only_to_target_payload(tmp_path: Path):
     result = await intake.ingest(
         source_chat_id=chat_id, message_id=701,
         text="Sale from @sample_user https://example.com",
+        formatting_entities=[{"_": "MessageEntityBold", "offset": 0, "length": 4}],
     )
     payload_a = await intake.build_publish_payload(
         content_id=result.content_id, target_channel_id=target_a_id
@@ -163,7 +164,9 @@ async def test_route_filter_is_applied_only_to_target_payload(tmp_path: Path):
     )
     assert payload_a is not None and payload_b is not None
     assert payload_a.text == "from"
+    assert payload_a.formatting_entities == ()
     assert payload_b.text == "Sale from @sample_user https://example.com"
+    assert payload_b.formatting_entities == ({"_": "MessageEntityBold", "offset": 0, "length": 4},)
     async with database.session() as session:
         content = await session.get(Content, result.content_id)
         assert content.caption == "Sale from @sample_user https://example.com"
