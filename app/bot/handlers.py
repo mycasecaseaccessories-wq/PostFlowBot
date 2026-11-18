@@ -180,6 +180,39 @@ def build_router(status_service: StatusService, source_service: Any | None = Non
         except Exception as exc:
             await message.answer(f"Permission check failed: {str(exc)[:500]}")
 
+    @router.message(Command("source_refresh"))
+    async def source_refresh_handler(message: Message) -> None:
+        if source_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /source_refresh SOURCE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /source_refresh SOURCE_ID")
+            return
+        try:
+            channel = await source_service.refresh_source(int(parts[1]), message.from_user.id)
+            await message.answer(f"Source refreshed: #{channel.id} · {channel.title}")
+        except Exception as exc:
+            await message.answer(f"Could not refresh source: {str(exc)[:500]}")
+
+    @router.message(Command("target_refresh"))
+    async def target_refresh_handler(message: Message) -> None:
+        if target_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /target_refresh TARGET_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /target_refresh TARGET_ID")
+            return
+        try:
+            channel = await target_service.refresh_target(int(parts[1]), message.from_user.id)
+            await message.answer(
+                f"Target refreshed: #{channel.id} · {channel.title}\n"
+                "Permission status reset. Run /target_check before routing."
+            )
+        except Exception as exc:
+            await message.answer(f"Could not refresh target: {str(exc)[:500]}")
+
     @router.message(Command("source_on"))
     async def source_on_handler(message: Message) -> None:
         if source_service is None or not message.from_user or not message.text:
