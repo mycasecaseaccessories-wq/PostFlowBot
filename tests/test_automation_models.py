@@ -177,3 +177,42 @@ async def test_channel_permission_state_and_content_origin_deduplication(tmp_pat
             await session.commit()
         await session.rollback()
     await database.close()
+
+@pytest.mark.asyncio
+async def test_due_publish_job_is_claimed_once(tmp_path: Path):
+    from app.database.automation_models import PublishJobStatus
+    from app.services.publishing_queue import claim_next_publish_job
+
+    database = Database(settings_for(tmp_path / "claim-once.db"))
+    await database.initialize()
+    due = datetime.now(UTC) - timedelta(seconds=1)
+    async with database.session() as session:
+        target = TargetChannel(telegram_chat_id=-1001234500099, title="Queue target")
+        content = Content(title="Due post")
+        session.add_all([target, content])
+        await session.flush()
+        job = PublishJob(
+            content=content,
+            target_channel=target,
+            idempotency_key="claim-once-job",
+            run_at=due,
+            status=PublishJobStatus.QUEUED.value,
+        )
+        session.add(job)
+        await session.commit()
+        job_id = job.id
+
+    async with database.session() as session:
+        claimed = await claim_next_publish_job(session, now=datetime.now(UTC))
+        assert claimed is not None
+        assert claimed.id == job_id
+        assert claimed.status == PublishJobStatus.PROCESSING.value
+        assert claimed.attempts == 1
+        await session.commit()
+
+    async with database.session() as session:
+        second_claim = await claim_next_publish_job(session, now=datetime.now(UTC))
+        assert second_claim is None
+        await session.rollback()
+
+    await database.close()
