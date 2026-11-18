@@ -127,7 +127,10 @@ class TargetChannelService:
             "username": resolved.username,
             "title": resolved.title,
             "channel_type": resolved.channel_type,
-            "publishing_permission_confirmed": resolved.publishing_permission_confirmed,
+            "publishing_permission_confirmed": None,
+            "posting_permission_status": "unknown",
+            "permission_checked_at": None,
+            "permission_error": None,
             "is_active": True,
         }
         if existing is not None:
@@ -143,7 +146,13 @@ class TargetChannelService:
 
     async def enable_target(self, target_id: int, admin_id: int) -> TargetChannel:
         await self.get_target(target_id)
-        target = await self.repository.save_target({"is_active": True}, target_id)
+        target = await self.repository.save_target({
+            "is_active": True,
+            "publishing_permission_confirmed": None,
+            "posting_permission_status": "unknown",
+            "permission_checked_at": None,
+            "permission_error": None,
+        }, target_id)
         logger.info("Admin %s enabled target channel %s", admin_id, target_id)
         return target
 
@@ -170,7 +179,10 @@ class TargetChannelService:
                 "username": resolved.username,
                 "title": resolved.title,
                 "channel_type": resolved.channel_type,
-                "publishing_permission_confirmed": resolved.publishing_permission_confirmed,
+                "publishing_permission_confirmed": None,
+                "posting_permission_status": "unknown",
+                "permission_checked_at": None,
+                "permission_error": "Target details refreshed; run /target_check to verify current posting rights.",
             },
             target.id,
         )

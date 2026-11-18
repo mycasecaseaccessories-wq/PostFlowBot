@@ -195,3 +195,22 @@ async def test_stale_processing_job_requires_operator_recovery(tmp_path: Path):
         assert job.status == PublishJobStatus.UNCERTAIN.value
         assert attempt.outcome == "uncertain"
     await database.close()
+
+@pytest.mark.asyncio
+async def test_worker_does_not_send_to_disabled_target(tmp_path: Path):
+    database = Database(make_settings(tmp_path / "worker-disabled-target.db"))
+    await database.initialize()
+    job_id = await create_due_job(database)
+    async with database.session() as session:
+        target = await session.scalar(select(TargetChannel))
+        target.is_active = False
+        await session.commit()
+
+    publisher = FakePublisher()
+    worker = PublishingWorker(database.session_factory, publisher)
+    assert await worker.run_once() is True
+    assert publisher.calls == 0
+    async with database.session() as session:
+        job = await session.get(PublishJob, job_id)
+        assert job.status == PublishJobStatus.FAILED.value
+    await database.close()

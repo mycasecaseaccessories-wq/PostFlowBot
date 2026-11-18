@@ -27,6 +27,7 @@ class AdminBotService:
         source_service: SourceChannelService,
         target_service: TargetChannelService,
         routing_service: RoutingService,
+        permission_service=None,
     ) -> None:
         try:
             validate_token(settings.bot_token)
@@ -46,7 +47,7 @@ class AdminBotService:
             AdminAccessMiddleware(settings.admin_user_ids)
         )
         self.dispatcher.include_router(
-            build_router(status_service, source_service, target_service, routing_service)
+            build_router(status_service, source_service, target_service, routing_service, permission_service)
         )
         self.status_service = status_service
         self.running = False

@@ -108,13 +108,18 @@ class PublishingWorker:
             job_id = loaded.id
             attempt_number = loaded.attempts
             max_attempts = loaded.max_attempts
-            permission_verified = loaded.target_channel.posting_permission_status == "verified"
+            permission_verified = (
+                loaded.target_channel.is_active
+                and loaded.target_channel.posting_permission_status == "verified"
+                and not loaded.content.is_archived
+                and loaded.content.is_active
+            )
             await session.commit()
 
         if not permission_verified:
             await self._record_permanent_failure(
                 job_id, attempt_id,
-                PermanentPublishError("Target channel posting permission is not verified."),
+                PermanentPublishError("Target is inactive, posting permission is unverified, or source content is archived."),
             )
             return True
 
