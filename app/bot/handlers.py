@@ -504,7 +504,8 @@ def build_router(
             "/route_add SOURCE_ID TARGET_ID\n/route_on ROUTE_ID\n/route_off ROUTE_ID\n"
             "/route_filters ROUTE_ID usernames=on links=off keywords=spam,scam\n"
             "/route_preview ROUTE_ID text to preview\n"
-            "/media_status\n"
+            "/media_status\n/publish_jobs [status]\n/publish_job JOB_ID\n"
+            "/publish_recover JOB_ID\n/publish_retry JOB_ID (after checking target channel)\n"
             "/target_check TARGET_ID\n/source_on SOURCE_ID\n/source_off SOURCE_ID\n"
             "/target_on TARGET_ID\n/target_off TARGET_ID"
         )
