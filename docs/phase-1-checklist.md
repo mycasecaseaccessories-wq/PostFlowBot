@@ -25,7 +25,7 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - [x] Add Phase 1 model tests and extend migration-head assertions.
 - [x] Make the additive channel/content migration compatible with SQLite and PostgreSQL using Alembic batch operations.
 - [x] Document backup, restore, and migration rollback procedure.
-- [ ] Verify the latest full CI run passes after the SQLite migration fix.
+- [x] Verify the latest full CI run passes after the SQLite migration fix (GitHub Actions Run #46, job `test`, conclusion `success`, associated with commit `f34ca53b937b9f4de86fead4ec54c38d09d9b1a0`).
 - [ ] Implement the long-running worker loop, delivery-result handling, and operator-led recovery for uncertain in-flight sends before enabling scheduled delivery.
 
 ## External setup required before live Telegram integration
@@ -44,9 +44,10 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - No post is sent to a target until an administrator explicitly enables that target and the publishing feature.
 
 ## Verification record
+- Latest CI: Run #46 (`44257106120`) — Python CI / `test` job completed successfully for commit `f34ca53b937b9f4de86fead4ec54c38d09d9b1a0`.
 - Pull request: https://github.com/mycasecaseaccessories-wq/PostFlowBot/pull/1
 - Previous CI run: 43910019000 — 35 passed, 4 migration tests failed because SQLite does not support direct ALTER TABLE constraint creation.
 - Migration fix commit: 6ef9e01008c45aea8d216c5d40483b1205257d3c
-- Current CI status: no check result is exposed for the latest feature-branch commits yet; do not treat Phase 1 as verified complete until a green full-suite run is recorded.
+- Current CI status: latest full GitHub Actions Python CI job is green (Run #46). This verifies the repository test workflow only; it does not verify live Telegram delivery, production PostgreSQL, hosting, secrets, or deployment.
 - Verification environment: GitHub Actions, Python 3.11, SQLite test databases.
 - No production database migration or Telegram publishing was run.
