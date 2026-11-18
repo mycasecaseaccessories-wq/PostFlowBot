@@ -68,3 +68,58 @@ async def test_route_requires_verified_target_permission():
     service = RoutingService(None, FakeChannelService(source), FakeChannelService(target))
     with pytest.raises(ConflictError, match="Verify target posting permission"):
         await service.validate_route(1, 2)
+
+
+@pytest.mark.asyncio
+async def test_route_filter_update_changes_only_requested_values():
+    class FakeRepository:
+        def __init__(self):
+            self.route = SimpleNamespace(
+                id=9, remove_usernames=False, remove_links=False,
+                remove_keywords=None, is_active=True,
+            )
+            self.saved = None
+
+        async def get(self, route_id):
+            return self.route if route_id == 9 else None
+
+        async def save(self, values, route_id):
+            self.saved = dict(values)
+            for key, value in values.items():
+                setattr(self.route, key, value)
+            return self.route
+
+    repository = FakeRepository()
+    service = RoutingService(repository, None, None)
+    route = await service.update_route_filters(
+        9, 42, remove_usernames=True, remove_keywords="spam, scam",
+        update_keywords=True,
+    )
+    assert route.remove_usernames is True
+    assert route.remove_links is False
+    assert route.remove_keywords == "spam, scam"
+    assert repository.saved == {
+        "remove_usernames": True,
+        "remove_keywords": "spam, scam",
+    }
+
+
+@pytest.mark.asyncio
+async def test_route_filter_update_can_clear_keyword_list():
+    class FakeRepository:
+        def __init__(self):
+            self.route = SimpleNamespace(id=10, remove_keywords="spam")
+
+        async def get(self, route_id):
+            return self.route
+
+        async def save(self, values, route_id):
+            for key, value in values.items():
+                setattr(self.route, key, value)
+            return self.route
+
+    service = RoutingService(FakeRepository(), None, None)
+    route = await service.update_route_filters(
+        10, 42, remove_keywords=None, update_keywords=True
+    )
+    assert route.remove_keywords is None

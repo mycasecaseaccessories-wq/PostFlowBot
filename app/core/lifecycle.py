@@ -15,6 +15,7 @@ from app.database.repositories.routing import RoutingRepository
 from app.services.channel_service import SourceChannelService, TargetChannelService
 from app.services.routing_service import RoutingService
 from app.services.message_intake import MessageIntakeService
+from app.services.media_storage import LocalMediaStorage
 from app.services.channel_permission import ChannelPermissionService
 from app.telegram.client import TelethonClientService
 from app.telegram.listener import MessageListenerService
@@ -50,7 +51,13 @@ class Application:
             self.source_service,
             self.target_service,
         )
-        self.message_intake = MessageIntakeService(self.database.session_factory)
+        self.media_storage = LocalMediaStorage(
+            settings.media_storage_dir, max_bytes=settings.media_max_bytes
+        )
+        self.message_intake = MessageIntakeService(
+            self.database.session_factory, self.media_storage,
+            media_retry_max_attempts=settings.media_retry_max_attempts,
+        )
         self.permission_service = ChannelPermissionService(self.database.session_factory, self.telethon)
         self.listener = MessageListenerService(
             self.telethon.get_client(), self.status_service, self.message_intake
@@ -62,6 +69,7 @@ class Application:
             self.target_service,
             self.routing_service,
             self.permission_service,
+            self.message_intake,
         )
         self.scheduler = AsyncIOScheduler(timezone=settings.timezone)
         self._shutdown_event = asyncio.Event()
@@ -91,6 +99,19 @@ class Application:
             self.status_service.telethon_connected = self.telethon.is_connected()
             self.status_service.telethon_authorized = self.telethon.is_authorized()
             await self.listener.start()
+            if self.telethon.is_authorized():
+                self.scheduler.add_job(
+                    self.message_intake.retry_pending_media,
+                    "interval",
+                    minutes=self.settings.media_retry_interval_minutes,
+                    kwargs={"client": self.telethon.get_client(), "limit": 20},
+                    id="pending-media-recovery",
+                    replace_existing=True,
+                    max_instances=1,
+                    coalesce=True,
+                )
+                if not self.scheduler.running:
+                    self.scheduler.start()
             self._started = True
             logger.info("Application startup sequence complete")
         except Exception:

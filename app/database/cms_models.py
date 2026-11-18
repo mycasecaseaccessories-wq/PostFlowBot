@@ -184,6 +184,8 @@ class Content(CmsTimestampMixin, SoftDeleteMixin, Base):
         Integer, ForeignKey("source_channels.id", ondelete="SET NULL"), nullable=True
     )
     source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    caption_source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    formatting_entities: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         String(32), default=ContentStatus.DRAFT.value, nullable=False
     )
@@ -231,6 +233,13 @@ class Media(CmsTimestampMixin, SoftDeleteMixin, Base):
     height: Mapped[int | None] = mapped_column(Integer)
     duration: Mapped[int | None] = mapped_column(Integer)
     thumbnail_file_id: Mapped[str | None] = mapped_column(String(512))
+    storage_backend: Mapped[str | None] = mapped_column(String(32))
+    storage_key: Mapped[str | None] = mapped_column(String(1024), unique=True)
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    stored_size: Mapped[int | None] = mapped_column(BigInteger)
+    storage_status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False)
+    storage_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    storage_error: Mapped[str | None] = mapped_column(Text)
     uploaded_by: Mapped[int | None] = mapped_column(
         ForeignKey("admins.id", ondelete="SET NULL"), nullable=True
     )
@@ -249,6 +258,7 @@ class ContentMedia(Base):
         CheckConstraint("display_order >= 0", name="ck_content_media_display_order_nonnegative"),
         Index("ix_content_media_display_order", "content_id", "display_order"),
         Index("ix_content_media_media_id", "media_id"),
+        Index("ix_content_media_source_message", "content_id", "source_message_id"),
     )
 
     content_id: Mapped[str] = mapped_column(
@@ -259,6 +269,7 @@ class ContentMedia(Base):
     )
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     album_group_key: Mapped[str | None] = mapped_column(String(128))
+    source_message_id: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, nullable=False
     )
