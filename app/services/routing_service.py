@@ -66,6 +66,31 @@ class RoutingService:
         logger.info("Admin %s created route %s", admin_id, route.id)
         return route
 
+    async def update_route_filters(
+        self, route_id: int, admin_id: int, *,
+        remove_usernames: bool | None = None,
+        remove_links: bool | None = None,
+        remove_keywords: str | None = None,
+        update_keywords: bool = False,
+    ) -> RepostRule:
+        """Update only explicitly supplied per-route content filters."""
+        await self.get_route(route_id)
+        values: dict[str, object] = {}
+        if remove_usernames is not None:
+            values["remove_usernames"] = remove_usernames
+        if remove_links is not None:
+            values["remove_links"] = remove_links
+        if update_keywords:
+            keywords = (remove_keywords or "").strip()
+            if len(keywords) > 2000:
+                raise ConflictError("Keyword filter is too long (maximum 2000 characters).")
+            values["remove_keywords"] = keywords or None
+        if not values:
+            raise ConflictError("Specify at least one filter to update.")
+        route = await self.repository.save(values, route_id)
+        logger.info("Admin %s updated content filters for route %s", admin_id, route_id)
+        return route
+
     async def enable_route(self, route_id: int, admin_id: int) -> RepostRule:
         existing = await self.get_route(route_id)
         await self.validate_route(existing.source_channel_id, existing.target_channel_id)
