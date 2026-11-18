@@ -69,6 +69,7 @@ class Application:
             self.target_service,
             self.routing_service,
             self.permission_service,
+            self.message_intake,
         )
         self.scheduler = AsyncIOScheduler(timezone=settings.timezone)
         self._shutdown_event = asyncio.Event()
