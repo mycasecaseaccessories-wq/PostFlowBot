@@ -30,6 +30,7 @@ class Settings:
     media_max_bytes: int = 52428800
     media_retry_max_attempts: int = 5
     media_retry_interval_minutes: int = 10
+    publishing_enabled: bool = False
 
     @property
     def database_path(self) -> Path | None:
@@ -129,4 +130,5 @@ def load_settings(
         media_max_bytes=max(1, int(source.get("MEDIA_MAX_BYTES", "52428800"))),
         media_retry_max_attempts=max(1, int(source.get("MEDIA_RETRY_MAX_ATTEMPTS", "5"))),
         media_retry_interval_minutes=max(1, int(source.get("MEDIA_RETRY_INTERVAL_MINUTES", "10"))),
+        publishing_enabled=source.get("PUBLISHING_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"},
     )
