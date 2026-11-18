@@ -25,6 +25,15 @@ CMS_TABLES = {
     "tags",
     "content_tags",
 }
+AUTOMATION_TABLES = {
+    "workspaces",
+    "workspace_members",
+    "content_approvals",
+    "schedules",
+    "publish_jobs",
+    "publish_attempts",
+    "audit_events",
+}
 EXPECTED_TABLES = {
     "admins",
     "source_channels",
@@ -99,6 +108,7 @@ async def test_fresh_database_upgrade_creates_expected_schema(tmp_path: Path) ->
 
     assert EXPECTED_TABLES <= tables
     assert CMS_TABLES <= tables
+    assert AUTOMATION_TABLES <= tables
     assert revision == CMS_HEAD_REVISION
     assert {"origin", "source_channel_id", "source_message_id"} <= contents_columns
     assert {
