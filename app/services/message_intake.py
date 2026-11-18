@@ -317,6 +317,8 @@ class MessageIntakeService:
                 return False
             if media.storage_status == "stored" and media.storage_key:
                 return True
+            if media.storage_status == "failed":
+                return False
             media.storage_attempts += 1
             media.storage_error = None
             media_id = media.id
