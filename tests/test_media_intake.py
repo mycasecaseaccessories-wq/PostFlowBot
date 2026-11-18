@@ -168,3 +168,121 @@ async def test_route_filter_is_applied_only_to_target_payload(tmp_path: Path):
         content = await session.get(Content, result.content_id)
         assert content.caption == "Sale from @sample_user https://example.com"
     await database.close()
+
+
+@pytest.mark.asyncio
+async def test_album_edit_and_delete_reconcile_individual_source_items(tmp_path: Path):
+    database = Database(settings_for(tmp_path / "album-edits.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500401, title="Source")
+        target = TargetChannel(
+            telegram_chat_id=-1001234500402, title="Target",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target])
+        await session.flush()
+        session.add(RepostRule(source_channel_id=source.id, target_channel_id=target.id))
+        await session.commit()
+        chat_id, target_id = source.telegram_chat_id, target.id
+
+    intake = MessageIntakeService(database.session_factory)
+    first = await intake.ingest(
+        source_chat_id=chat_id, message_id=801, text="Original album caption",
+        grouped_id=888, media_items=[
+            MediaDescriptor("album-edit-1", "album-edit-unique-1", "photo")
+        ],
+    )
+    second = await intake.ingest(
+        source_chat_id=chat_id, message_id=802, text=None,
+        grouped_id=888, media_items=[
+            MediaDescriptor("album-edit-2", "album-edit-unique-2", "photo")
+        ],
+    )
+    assert first.accepted and second.accepted
+
+    assert await intake.update_source_message(
+        source_chat_id=chat_id, message_id=801, text="Updated album caption"
+    )
+    assert await intake.delete_source_message(source_chat_id=chat_id, message_id=802)
+    async with database.session() as session:
+        content = await session.get(Content, first.content_id)
+        links = list((await session.scalars(select(ContentMedia))).all())
+        job = await session.scalar(select(PublishJob))
+        assert content.is_archived is False
+        assert content.caption == "Updated album caption"
+        assert len(links) == 1
+        assert links[0].source_message_id == 801
+        assert job.status == "queued"
+
+    assert await intake.delete_source_message(source_chat_id=chat_id, message_id=801)
+    async with database.session() as session:
+        content = await session.get(Content, first.content_id)
+        job = await session.scalar(select(PublishJob))
+        assert content.is_archived is True
+        assert content.caption is None
+        assert job.status == "cancelled"
+    await database.close()
+
+
+@pytest.mark.asyncio
+async def test_telegram_media_is_downloaded_and_persisted_with_checksum(tmp_path: Path):
+    import hashlib
+
+    from app.services.media_storage import LocalMediaStorage
+
+    database = Database(settings_for(tmp_path / "stored-media.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500501, title="Source")
+        target = TargetChannel(
+            telegram_chat_id=-1001234500502, title="Target",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target])
+        await session.flush()
+        session.add(RepostRule(source_channel_id=source.id, target_channel_id=target.id))
+        await session.commit()
+        chat_id, target_id = source.telegram_chat_id, target.id
+
+    descriptor = MediaDescriptor(
+        telegram_file_id="stored-file-id",
+        telegram_file_unique_id="stored-file-unique-id",
+        media_type="document",
+        original_file_name="guide.pdf",
+        mime_type="application/pdf",
+        file_size=14,
+    )
+    intake = MessageIntakeService(
+        database.session_factory,
+        LocalMediaStorage(tmp_path / "persistent-volume", max_bytes=1024),
+    )
+    result = await intake.ingest(
+        source_chat_id=chat_id, message_id=901, text="A document",
+        content_type="document", media_items=[descriptor],
+    )
+
+    class FakeTelegramClient:
+        async def download_media(self, message, file):
+            Path(file).write_bytes(b"postflow-media")
+            return file
+
+    assert await intake.store_telegram_media(
+        client=FakeTelegramClient(), message=object(), descriptor=descriptor
+    )
+    async with database.session() as session:
+        media = await session.scalar(select(Media))
+        assert media.storage_status == "stored"
+        assert media.storage_backend == "local"
+        assert media.stored_size == 14
+        assert media.sha256 == hashlib.sha256(b"postflow-media").hexdigest()
+        stored_path = intake.media_storage.resolve(media.storage_key)
+        assert stored_path.read_bytes() == b"postflow-media"
+
+    payload = await intake.build_publish_payload(
+        content_id=result.content_id, target_channel_id=target_id
+    )
+    assert payload is not None
+    assert payload.media[0].storage_key is not None
+    assert payload.media[0].sha256 == hashlib.sha256(b"postflow-media").hexdigest()
+    await database.close()
