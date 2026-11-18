@@ -28,6 +28,8 @@ class Settings:
     database_schema_mode: str = "bootstrap"
     media_storage_dir: str = "./data/media"
     media_max_bytes: int = 52428800
+    media_retry_max_attempts: int = 5
+    media_retry_interval_minutes: int = 10
 
     @property
     def database_path(self) -> Path | None:
@@ -125,4 +127,6 @@ def load_settings(
         ),
         media_storage_dir=source.get("MEDIA_STORAGE_DIR", "./data/media").strip() or "./data/media",
         media_max_bytes=max(1, int(source.get("MEDIA_MAX_BYTES", "52428800"))),
+        media_retry_max_attempts=max(1, int(source.get("MEDIA_RETRY_MAX_ATTEMPTS", "5"))),
+        media_retry_interval_minutes=max(1, int(source.get("MEDIA_RETRY_INTERVAL_MINUTES", "10"))),
     )
