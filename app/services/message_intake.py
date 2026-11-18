@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+import tempfile
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -14,6 +16,7 @@ from app.database.cms_models import (
 )
 from app.database.models import RepostRule, SourceChannel, TargetChannel
 from app.services.content_transform import transform_text
+from app.services.media_storage import LocalMediaStorage
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +30,10 @@ class MediaDescriptor:
     width: int | None = None
     height: int | None = None
     duration: int | None = None
+    storage_backend: str | None = None
+    storage_key: str | None = None
+    sha256: str | None = None
+    stored_size: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +56,12 @@ class IntakeResult:
 class MessageIntakeService:
     """Idempotently import source messages, including grouped Telegram albums."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession],
+        media_storage: LocalMediaStorage | None = None,
+    ) -> None:
         self.session_factory = session_factory
+        self.media_storage = media_storage
 
     async def ingest(
         self, *, source_chat_id: int, message_id: int, text: str | None,
@@ -87,6 +98,7 @@ class MessageIntakeService:
                 resolved_type = ContentType.ALBUM.value if grouped_id is not None else content_type
                 content = Content(
                     title=body[:255] or None, caption=body or None, body_text=body or None,
+                    caption_source_message_id=message_id if body else None,
                     content_type=resolved_type,
                     origin=ContentOrigin.CHANNEL_IMPORT.value,
                     source_channel_id=source_id, source_message_id=message_id,
@@ -111,6 +123,7 @@ class MessageIntakeService:
                 content.caption = body
                 content.body_text = body
                 content.title = body[:255]
+                content.caption_source_message_id = message_id
 
             attached = 0
             for item in items:
@@ -146,6 +159,7 @@ class MessageIntakeService:
                         content_id=content.id, media_id=media.id,
                         display_order=int(current_order or 0),
                         album_group_key=album_key,
+                        source_message_id=message_id,
                     ))
                     attached += 1
 
@@ -234,6 +248,10 @@ class MessageIntakeService:
                 width=item.width,
                 height=item.height,
                 duration=item.duration,
+                storage_backend=item.storage_backend,
+                storage_key=item.storage_key,
+                sha256=item.sha256,
+                stored_size=item.stored_size,
             ) for item in media_rows)
             return PublishPayload(
                 content_id=content.id,
@@ -242,8 +260,65 @@ class MessageIntakeService:
                 media=media,
             )
 
-    async def update_source_message(self, *, source_chat_id: int,
-                                    message_id: int, text: str | None) -> bool:
+    async def store_telegram_media(
+        self, *, client, message, descriptor: MediaDescriptor,
+    ) -> bool:
+        """Download a source message and atomically persist its media bytes."""
+        if self.media_storage is None:
+            return False
+        async with self.session_factory() as session:
+            media = await session.scalar(select(Media).where(
+                or_(
+                    Media.telegram_file_unique_id == descriptor.telegram_file_unique_id,
+                    Media.telegram_file_id == descriptor.telegram_file_id,
+                )
+            ))
+            if media is None:
+                return False
+            if media.storage_status == "stored" and media.storage_key:
+                return True
+            media.storage_attempts += 1
+            media.storage_error = None
+            media_id = media.id
+            await session.commit()
+
+        try:
+            if descriptor.file_size and descriptor.file_size > self.media_storage.max_bytes:
+                raise ValueError(
+                    f"Media exceeds configured limit ({descriptor.file_size} bytes)."
+                )
+            with tempfile.TemporaryDirectory(prefix="postflow-media-") as temp_dir:
+                suffix = Path(descriptor.original_file_name or "").suffix[:12]
+                download_path = Path(temp_dir) / f"source{suffix}"
+                downloaded = await client.download_media(message, file=str(download_path))
+                actual_path = Path(downloaded) if isinstance(downloaded, str) else download_path
+                stored = await self.media_storage.store_file(
+                    actual_path, media_id, descriptor.original_file_name
+                )
+            async with self.session_factory() as session:
+                media = await session.get(Media, media_id)
+                if media is None:
+                    return False
+                media.storage_backend = stored.backend
+                media.storage_key = stored.key
+                media.sha256 = stored.sha256
+                media.stored_size = stored.size
+                media.storage_status = "stored"
+                media.storage_error = None
+                await session.commit()
+            return True
+        except Exception as exc:
+            async with self.session_factory() as session:
+                media = await session.get(Media, media_id)
+                if media is not None:
+                    media.storage_status = "pending"
+                    media.storage_error = f"{type(exc).__name__}: {exc}"[:1000]
+                    await session.commit()
+            raise
+
+    async def update_source_message(
+        self, *, source_chat_id: int, message_id: int, text: str | None,
+    ) -> bool:
         body = (text or "").strip()
         async with self.session_factory() as session:
             source = await session.scalar(select(SourceChannel).where(
@@ -252,19 +327,34 @@ class MessageIntakeService:
                 return False
             content = await session.scalar(select(Content).where(
                 Content.source_channel_id == source.id,
-                Content.source_message_id == message_id))
+                or_(
+                    Content.source_message_id == message_id,
+                    Content.id.in_(select(ContentMedia.content_id).where(
+                        ContentMedia.source_message_id == message_id
+                    )),
+                ),
+            ))
             if content is None or content.is_archived:
                 return False
-            content.title = body[:255] or None
-            content.caption = body or None
-            content.body_text = body or None
+            if content.caption_source_message_id == message_id:
+                content.title = body[:255] or None
+                content.caption = body or None
+                content.body_text = body or None
+                if not body:
+                    content.caption_source_message_id = None
+            elif body and not content.caption:
+                content.title = body[:255]
+                content.caption = body
+                content.body_text = body
+                content.caption_source_message_id = message_id
             content.updated_at = datetime.now(UTC)
             await session.commit()
             return True
 
-    async def delete_source_message(self, *, source_chat_id: int,
-                                    message_id: int) -> bool:
-        """Archive deleted source content and cancel jobs not yet claimed."""
+    async def delete_source_message(
+        self, *, source_chat_id: int, message_id: int,
+    ) -> bool:
+        """Reconcile album item deletion; archive only when no album media remains."""
         async with self.session_factory() as session:
             source = await session.scalar(select(SourceChannel).where(
                 SourceChannel.telegram_chat_id == source_chat_id))
@@ -272,10 +362,36 @@ class MessageIntakeService:
                 return False
             content = await session.scalar(select(Content).where(
                 Content.source_channel_id == source.id,
-                Content.source_message_id == message_id))
+                or_(
+                    Content.source_message_id == message_id,
+                    Content.id.in_(select(ContentMedia.content_id).where(
+                        ContentMedia.source_message_id == message_id
+                    )),
+                ),
+            ))
             if content is None:
                 return False
             now = datetime.now(UTC)
+            if content.content_type == ContentType.ALBUM.value:
+                link = await session.scalar(select(ContentMedia).where(
+                    ContentMedia.content_id == content.id,
+                    ContentMedia.source_message_id == message_id,
+                ))
+                if link is not None:
+                    await session.delete(link)
+                if content.caption_source_message_id == message_id:
+                    content.caption = None
+                    content.body_text = None
+                    content.title = None
+                    content.caption_source_message_id = None
+                remaining = await session.scalar(select(func.count(ContentMedia.media_id)).where(
+                    ContentMedia.content_id == content.id
+                ))
+                if remaining:
+                    content.updated_at = now
+                    await session.commit()
+                    return True
+
             content.is_active = False
             content.is_archived = True
             content.archived_at = now
