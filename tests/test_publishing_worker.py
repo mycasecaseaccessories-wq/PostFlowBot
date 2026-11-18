@@ -16,6 +16,7 @@ from app.services.publishing_worker import (
     RetryablePublishError,
     UncertainPublishError,
     retry_uncertain_publish_job,
+    mark_stale_processing_job_uncertain,
 )
 
 
@@ -161,4 +162,36 @@ async def test_worker_does_not_send_without_verified_channel_permission(tmp_path
     async with database.session() as session:
         job = await session.get(PublishJob, job_id)
         assert job.status == PublishJobStatus.FAILED.value
+    await database.close()
+
+
+
+@pytest.mark.asyncio
+async def test_stale_processing_job_requires_operator_recovery(tmp_path: Path):
+    database = Database(make_settings(tmp_path / "worker-stale.db"))
+    await database.initialize()
+    job_id = await create_due_job(database)
+    async with database.session() as session:
+        admin = Admin(telegram_user_id=42)
+        session.add(admin)
+        job = await session.get(PublishJob, job_id)
+        job.status = PublishJobStatus.PROCESSING.value
+        job.attempts = 1
+        job.locked_at = datetime.now(UTC) - timedelta(minutes=20)
+        attempt = PublishAttempt(
+            publish_job_id=job_id,
+            attempt_number=1,
+            outcome="processing",
+        )
+        session.add(attempt)
+        await session.flush()
+        await mark_stale_processing_job_uncertain(
+            session,
+            job_id,
+            operator_admin_id=admin.id,
+            stale_after=timedelta(minutes=10),
+        )
+        await session.commit()
+        assert job.status == PublishJobStatus.UNCERTAIN.value
+        assert attempt.outcome == "uncertain"
     await database.close()
