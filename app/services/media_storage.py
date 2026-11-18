@@ -5,7 +5,6 @@ import asyncio
 import hashlib
 import os
 import re
-import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +12,10 @@ from pathlib import Path
 
 class MediaStorageError(RuntimeError):
     """Raised when a media object cannot be safely stored."""
+
+
+class MediaTooLargeError(MediaStorageError):
+    """Raised when media exceeds the configured storage size limit."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +54,7 @@ class LocalMediaStorage:
         if size <= 0:
             raise MediaStorageError("Downloaded Telegram media file is empty.")
         if size > self.max_bytes:
-            raise MediaStorageError(
+            raise MediaTooLargeError(
                 f"Media exceeds configured limit ({size} > {self.max_bytes} bytes)."
             )
         suffix = self._safe_suffix(filename)
