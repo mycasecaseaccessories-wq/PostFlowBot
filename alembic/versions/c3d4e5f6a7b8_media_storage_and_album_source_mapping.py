@@ -19,6 +19,9 @@ def upgrade() -> None:
     op.add_column("media", sa.Column("storage_key", sa.String(length=1024), nullable=True))
     op.add_column("media", sa.Column("sha256", sa.String(length=64), nullable=True))
     op.add_column("media", sa.Column("stored_size", sa.BigInteger(), nullable=True))
+    op.add_column("media", sa.Column("storage_status", sa.String(length=24), nullable=False, server_default="pending"))
+    op.add_column("media", sa.Column("storage_attempts", sa.Integer(), nullable=False, server_default="0"))
+    op.add_column("media", sa.Column("storage_error", sa.Text(), nullable=True))
     op.create_unique_constraint("uq_media_storage_key", "media", ["storage_key"])
 
     op.add_column(
@@ -41,6 +44,9 @@ def downgrade() -> None:
     op.drop_column("content_media", "source_message_id")
     op.drop_column("contents", "caption_source_message_id")
     op.drop_constraint("uq_media_storage_key", "media", type_="unique")
+    op.drop_column("media", "storage_error")
+    op.drop_column("media", "storage_attempts")
+    op.drop_column("media", "storage_status")
     op.drop_column("media", "stored_size")
     op.drop_column("media", "sha256")
     op.drop_column("media", "storage_key")
