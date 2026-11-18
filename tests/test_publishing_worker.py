@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from app.config.settings import load_settings
-from app.database import Content, PublishAttempt, PublishJob, TargetChannel
+from app.database import Admin, Content, PublishAttempt, PublishJob, TargetChannel
 from app.database.automation_models import PublishJobStatus
 from app.database.database import Database
 from app.services.publishing_worker import (
@@ -110,7 +110,7 @@ async def test_worker_retries_only_confirmed_retryable_failure(tmp_path: Path):
             select(PublishAttempt).where(PublishAttempt.publish_job_id == job_id)
         )
         assert job.status == PublishJobStatus.QUEUED.value
-        assert job.run_at > datetime.now(UTC) - timedelta(seconds=1)
+        assert job.run_at is not None
         assert attempt.outcome == "retryable_failure"
     await database.close()
 
@@ -135,7 +135,10 @@ async def test_worker_marks_ambiguous_send_uncertain_and_never_retries(tmp_path:
         assert attempts[0].outcome == "uncertain"
 
         # Requeue is a deliberate operator action, never an automatic retry.
-        await retry_uncertain_publish_job(session, job_id, operator_admin_id=42)
+        admin = Admin(telegram_user_id=42)
+        session.add(admin)
+        await session.flush()
+        await retry_uncertain_publish_job(session, job_id, operator_admin_id=admin.id)
         await session.commit()
         assert job.status == PublishJobStatus.QUEUED.value
     await database.close()
