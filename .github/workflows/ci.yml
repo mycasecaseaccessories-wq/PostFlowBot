@@ -20,3 +20,5 @@ jobs:
           pip install -r requirements.txt
       - name: Run tests
         run: pytest -q
+      - name: Build runtime container (no push)
+        run: docker build --tag postflow-bot:ci .
