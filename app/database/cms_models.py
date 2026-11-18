@@ -236,6 +236,9 @@ class Media(CmsTimestampMixin, SoftDeleteMixin, Base):
     storage_key: Mapped[str | None] = mapped_column(String(1024), unique=True)
     sha256: Mapped[str | None] = mapped_column(String(64))
     stored_size: Mapped[int | None] = mapped_column(BigInteger)
+    storage_status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False)
+    storage_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    storage_error: Mapped[str | None] = mapped_column(Text)
     uploaded_by: Mapped[int | None] = mapped_column(
         ForeignKey("admins.id", ondelete="SET NULL"), nullable=True
     )
