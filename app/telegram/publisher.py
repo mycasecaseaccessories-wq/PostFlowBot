@@ -12,6 +12,7 @@ from telethon.errors import FloodWaitError, RPCError
 
 from app.services.publishing_worker import (
     PermanentPublishError,
+    PublishResult,
     RetryablePublishError,
     UncertainPublishError,
 )
@@ -45,7 +46,7 @@ class TelegramPublisher:
                 continue
         return rebuilt or None
 
-    async def publish(self, payload: Any) -> int:
+    async def publish(self, payload: Any) -> PublishResult:
         if not self.client.is_connected() or not await self.client.is_user_authorized():
             raise PermanentPublishError("Telegram publishing account is not connected and authorized.")
 
@@ -60,7 +61,7 @@ class TelegramPublisher:
                     payload.destination_chat_id, text, parse_mode=None,
                     formatting_entities=entities,
                 )
-                return int(message.id)
+                return PublishResult((int(message.id),))
 
             paths: list[str] = []
             for item in media_items:
@@ -83,8 +84,8 @@ class TelegramPublisher:
             if isinstance(sent, (list, tuple)):
                 if not sent:
                     raise UncertainPublishError("Telegram returned no message IDs after media send.")
-                return int(sent[0].id)
-            return int(sent.id)
+                return PublishResult(tuple(int(item.id) for item in sent))
+            return PublishResult((int(sent.id),))
         except (PermanentPublishError, RetryablePublishError, UncertainPublishError):
             raise
         except FloodWaitError as exc:
