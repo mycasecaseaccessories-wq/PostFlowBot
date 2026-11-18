@@ -367,6 +367,8 @@ def build_router(
             "/source_add @username\n/target_add @username\n"
             "/source_refresh SOURCE_ID\n/target_refresh TARGET_ID\n"
             "/route_add SOURCE_ID TARGET_ID\n/route_on ROUTE_ID\n/route_off ROUTE_ID\n"
+            "/route_filters ROUTE_ID usernames=on links=off keywords=spam,scam\n"
+            "/route_preview ROUTE_ID text to preview\n"
             "/target_check TARGET_ID\n/source_on SOURCE_ID\n/source_off SOURCE_ID\n"
             "/target_on TARGET_ID\n/target_off TARGET_ID"
         )
