@@ -29,6 +29,7 @@ class AdminBotService:
         routing_service: RoutingService,
         permission_service=None,
         media_service=None,
+        publishing_service=None,
     ) -> None:
         try:
             validate_token(settings.bot_token)
@@ -50,7 +51,7 @@ class AdminBotService:
         self.dispatcher.include_router(
             build_router(
                 status_service, source_service, target_service, routing_service,
-                permission_service, media_service,
+                permission_service, media_service, publishing_service,
             )
         )
         self.status_service = status_service
