@@ -16,9 +16,11 @@ from app.services.channel_service import SourceChannelService, TargetChannelServ
 from app.services.routing_service import RoutingService
 from app.services.message_intake import MessageIntakeService
 from app.services.media_storage import LocalMediaStorage
+from app.services.publishing_worker import PublishingWorker
 from app.services.channel_permission import ChannelPermissionService
 from app.telegram.client import TelethonClientService
 from app.telegram.listener import MessageListenerService
+from app.telegram.publisher import TelegramPublisher
 from app.telegram.resolver import ChannelResolver
 
 from .logger import get_logger
@@ -62,6 +64,13 @@ class Application:
         self.listener = MessageListenerService(
             self.telethon.get_client(), self.status_service, self.message_intake
         )
+        self.publisher = TelegramPublisher(self.telethon.get_client(), self.media_storage)
+        self.publisher_worker = PublishingWorker(
+            self.database.session_factory, self.publisher,
+            intake_service=self.message_intake,
+        )
+        self._publisher_stop_event = asyncio.Event()
+        self._publisher_task: asyncio.Task[None] | None = None
         self.bot = AdminBotService(
             settings,
             self.status_service,
@@ -112,6 +121,17 @@ class Application:
                 )
                 if not self.scheduler.running:
                     self.scheduler.start()
+            if self.settings.publishing_enabled and self.telethon.is_authorized():
+                self._publisher_stop_event.clear()
+                self._publisher_task = asyncio.create_task(
+                    self.publisher_worker.run_forever(self._publisher_stop_event),
+                    name="telegram-publishing-worker",
+                )
+                logger.warning("Telegram publishing worker enabled by explicit PUBLISHING_ENABLED opt-in")
+            elif self.settings.publishing_enabled:
+                logger.warning("Publishing opt-in is set but Telegram account is not authorized; worker remains stopped")
+            else:
+                logger.info("Telegram publishing worker remains disabled (PUBLISHING_ENABLED=false)")
             self._started = True
             logger.info("Application startup sequence complete")
         except Exception:
@@ -123,6 +143,10 @@ class Application:
         if self._shutdown_complete:
             return
         logger.info("Application shutdown sequence beginning")
+        self._publisher_stop_event.set()
+        if self._publisher_task is not None:
+            await asyncio.gather(self._publisher_task, return_exceptions=True)
+            self._publisher_task = None
         await self.listener.stop()
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
