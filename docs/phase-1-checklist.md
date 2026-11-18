@@ -17,6 +17,8 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - [x] Add content approval persistence model.
 - [x] Add schedule, publish job, and publish attempt persistence models.
 - [x] Add idempotency constraints and indexes for due-job claiming.
+- [x] Add an atomic due-job claim primitive that conditionally transitions one queued job to processing.
+- [x] Test that the same due job cannot be claimed twice sequentially.
 - [x] Define target-channel posting permission state, last-checked timestamp, and error detail.
 - [x] Define content intake origin: manual, AI-assisted, and authorized channel import.
 - [x] Prevent duplicate imported messages with a source-channel/message uniqueness constraint.
@@ -24,7 +26,7 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - [x] Make the additive channel/content migration compatible with SQLite and PostgreSQL using Alembic batch operations.
 - [x] Document backup, restore, and migration rollback procedure.
 - [ ] Verify the latest full CI run passes after the SQLite migration fix.
-- [ ] Add and verify durable worker claiming/recovery behavior before enabling scheduled delivery.
+- [ ] Implement the long-running worker loop, delivery-result handling, and operator-led recovery for uncertain in-flight sends before enabling scheduled delivery.
 
 ## External setup required before live Telegram integration
 - [!] Create a dedicated Telegram bot with @BotFather and configure its token as a server-side secret.
@@ -45,6 +47,6 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - Pull request: https://github.com/mycasecaseaccessories-wq/PostFlowBot/pull/1
 - Previous CI run: 43910019000 — 35 passed, 4 migration tests failed because SQLite does not support direct ALTER TABLE constraint creation.
 - Migration fix commit: 6ef9e01008c45aea8d216c5d40483b1205257d3c
-- Current CI status: awaiting verification; do not treat Phase 1 as complete until green.
+- Current CI status: no check result is exposed for the latest feature-branch commits yet; do not treat Phase 1 as verified complete until a green full-suite run is recorded.
 - Verification environment: GitHub Actions, Python 3.11, SQLite test databases.
 - No production database migration or Telegram publishing was run.
