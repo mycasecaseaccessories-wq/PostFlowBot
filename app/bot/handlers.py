@@ -8,6 +8,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
 from app.core.status import StatusService
+from app.services.content_transform import transform_text
 
 FOUNDATION_NOTICE = "This feature is not available yet."
 CMS_PLACEHOLDER_BUTTONS = {
@@ -147,6 +148,79 @@ def build_router(
             )
         except Exception as exc:
             await message.answer(f"Could not create route: {str(exc)[:500]}")
+
+    @router.message(Command("route_filters"))
+    async def route_filters_handler(message: Message) -> None:
+        if routing_service is None or not message.from_user or not message.text:
+            await message.answer(
+                "Usage: /route_filters ROUTE_ID usernames=on links=off keywords=spam,scam"
+            )
+            return
+        parts = message.text.split(maxsplit=2)
+        if len(parts) < 3:
+            await message.answer(
+                "Usage: /route_filters ROUTE_ID usernames=on links=off keywords=spam,scam\n"
+                "Use keywords=none to clear keyword filters."
+            )
+            return
+        try:
+            route_id = int(parts[1])
+            updates: dict[str, Any] = {}
+            update_keywords = False
+            keywords: str | None = None
+            for token in parts[2].split():
+                if "=" not in token:
+                    raise ValueError(f"Invalid filter setting: {token}")
+                key, value = token.split("=", 1)
+                value = value.strip()
+                if key in {"usernames", "links"}:
+                    normalized = value.lower()
+                    if normalized not in {"on", "off", "true", "false", "1", "0"}:
+                        raise ValueError(f"{key} must be on or off.")
+                    updates["remove_usernames" if key == "usernames" else "remove_links"] = (
+                        normalized in {"on", "true", "1"}
+                    )
+                elif key == "keywords":
+                    update_keywords = True
+                    keywords = None if value.lower() in {"none", "off"} else value
+                else:
+                    raise ValueError(f"Unknown filter: {key}")
+            route = await routing_service.update_route_filters(
+                route_id, message.from_user.id,
+                remove_usernames=updates.get("remove_usernames"),
+                remove_links=updates.get("remove_links"),
+                remove_keywords=keywords,
+                update_keywords=update_keywords,
+            )
+            await message.answer(
+                f"Route #{route.id} filters saved\n"
+                f"Remove usernames: {'ON' if route.remove_usernames else 'OFF'}\n"
+                f"Remove links: {'ON' if route.remove_links else 'OFF'}\n"
+                f"Remove keywords: {route.remove_keywords or 'none'}"
+            )
+        except Exception as exc:
+            await message.answer(f"Could not update route filters: {str(exc)[:500]}")
+
+    @router.message(Command("route_preview"))
+    async def route_preview_handler(message: Message) -> None:
+        if routing_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /route_preview ROUTE_ID text to preview")
+            return
+        parts = message.text.split(maxsplit=2)
+        if len(parts) != 3:
+            await message.answer("Usage: /route_preview ROUTE_ID text to preview")
+            return
+        try:
+            route = await routing_service.get_route(int(parts[1]))
+            preview = transform_text(
+                parts[2],
+                remove_usernames=route.remove_usernames,
+                remove_links=route.remove_links,
+                remove_keywords=route.remove_keywords,
+            )
+            await message.answer(f"Preview for route #{route.id}:\n\n{preview[:3500] or '(empty)'}")
+        except Exception as exc:
+            await message.answer(f"Could not preview route: {str(exc)[:500]}")
 
     @router.message(Command("target_check"))
     async def target_check_handler(message: Message) -> None:
