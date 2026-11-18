@@ -203,6 +203,20 @@ async def test_album_edit_and_delete_reconcile_individual_source_items(tmp_path:
         ],
     )
     assert first.accepted and second.accepted
+    replaced = await intake.ingest(
+        source_chat_id=chat_id, message_id=802, text=None,
+        grouped_id=888, media_items=[
+            MediaDescriptor("album-edit-2-new", "album-edit-unique-2-new", "photo")
+        ],
+    )
+    assert replaced.accepted
+
+    async with database.session() as session:
+        links_before_delete = list((await session.scalars(
+            select(ContentMedia).order_by(ContentMedia.display_order)
+        )).all())
+        assert [link.display_order for link in links_before_delete] == [0, 1]
+        assert links_before_delete[1].source_message_id == 802
 
     assert await intake.update_source_message(
         source_chat_id=chat_id, message_id=801, text="Updated album caption"
