@@ -134,6 +134,36 @@ def build_router(status_service: StatusService, source_service: Any | None = Non
         except Exception as exc:
             await message.answer(f"Could not create route: {str(exc)[:500]}")
 
+    @router.message(Command("route_off"))
+    async def route_off_handler(message: Message) -> None:
+        if routing_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /route_off ROUTE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /route_off ROUTE_ID")
+            return
+        try:
+            await routing_service.disable_route(int(parts[1]), message.from_user.id)
+            await message.answer("Route disabled.")
+        except Exception as exc:
+            await message.answer(f"Could not disable route: {str(exc)[:500]}")
+
+    @router.message(Command("route_on"))
+    async def route_on_handler(message: Message) -> None:
+        if routing_service is None or not message.from_user or not message.text:
+            await message.answer("Usage: /route_on ROUTE_ID")
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer("Usage: /route_on ROUTE_ID")
+            return
+        try:
+            await routing_service.enable_route(int(parts[1]), message.from_user.id)
+            await message.answer("Route enabled. Make sure the target still has verified posting permission.")
+        except Exception as exc:
+            await message.answer(f"Could not enable route: {str(exc)[:500]}")
+
     @router.message(Command("target_check"))
     async def target_check_handler(message: Message) -> None:
         if permission_service is None or not message.text:
