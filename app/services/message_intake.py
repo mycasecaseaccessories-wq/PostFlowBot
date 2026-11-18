@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import tempfile
@@ -42,6 +43,7 @@ class PublishPayload:
     content_type: str
     text: str
     media: tuple[MediaDescriptor, ...]
+    formatting_entities: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +69,7 @@ class MessageIntakeService:
         self, *, source_chat_id: int, message_id: int, text: str | None,
         content_type: str = ContentType.TEXT.value, grouped_id: int | None = None,
         media_items: list[MediaDescriptor] | None = None,
+        formatting_entities: list[dict] | None = None,
     ) -> IntakeResult:
         body = (text or "").strip()
         items = media_items or []
@@ -99,6 +102,7 @@ class MessageIntakeService:
                 content = Content(
                     title=body[:255] or None, caption=body or None, body_text=body or None,
                     caption_source_message_id=message_id if body else None,
+                    formatting_entities=(json.dumps(formatting_entities, ensure_ascii=False) if formatting_entities else None),
                     content_type=resolved_type,
                     origin=ContentOrigin.CHANNEL_IMPORT.value,
                     source_channel_id=source_id, source_message_id=message_id,
@@ -124,6 +128,7 @@ class MessageIntakeService:
                 content.body_text = body
                 content.title = body[:255]
                 content.caption_source_message_id = message_id
+                content.formatting_entities = (json.dumps(formatting_entities, ensure_ascii=False) if formatting_entities else None)
 
             attached = 0
             current_media_ids: set[str] = set()
@@ -248,12 +253,19 @@ class MessageIntakeService:
             if row is None:
                 return None
             content, route = row
+            original_text = content.caption or content.body_text or ""
             transformed = transform_text(
-                content.caption or content.body_text,
+                original_text,
                 remove_usernames=route.remove_usernames,
                 remove_links=route.remove_links,
                 remove_keywords=route.remove_keywords,
             )
+            preserved_entities: tuple[dict, ...] = ()
+            if transformed == original_text and content.formatting_entities:
+                try:
+                    preserved_entities = tuple(json.loads(content.formatting_entities))
+                except (TypeError, ValueError):
+                    preserved_entities = ()
             media_rows = list((await session.scalars(
                 select(Media)
                 .join(ContentMedia, ContentMedia.media_id == Media.id)
@@ -280,6 +292,7 @@ class MessageIntakeService:
                 content_type=content.content_type,
                 text=transformed,
                 media=media,
+                formatting_entities=preserved_entities,
             )
 
     async def store_telegram_media(
@@ -396,6 +409,7 @@ class MessageIntakeService:
 
     async def update_source_message(
         self, *, source_chat_id: int, message_id: int, text: str | None,
+        formatting_entities: list[dict] | None = None,
     ) -> bool:
         body = (text or "").strip()
         async with self.session_factory() as session:
@@ -418,6 +432,10 @@ class MessageIntakeService:
                 content.title = body[:255] or None
                 content.caption = body or None
                 content.body_text = body or None
+                content.formatting_entities = (
+                    json.dumps(formatting_entities, ensure_ascii=False)
+                    if body and formatting_entities else None
+                )
                 if not body:
                     content.caption_source_message_id = None
             elif body and not content.caption:
@@ -425,6 +443,10 @@ class MessageIntakeService:
                 content.caption = body
                 content.body_text = body
                 content.caption_source_message_id = message_id
+                content.formatting_entities = (
+                    json.dumps(formatting_entities, ensure_ascii=False)
+                    if formatting_entities else None
+                )
             content.updated_at = datetime.now(UTC)
             await session.commit()
             return True
@@ -462,6 +484,7 @@ class MessageIntakeService:
                     content.body_text = None
                     content.title = None
                     content.caption_source_message_id = None
+                    content.formatting_entities = None
                 remaining = await session.scalar(select(func.count(ContentMedia.media_id)).where(
                     ContentMedia.content_id == content.id
                 ))
