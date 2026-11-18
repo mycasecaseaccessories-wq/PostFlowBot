@@ -110,6 +110,16 @@ class MessageListenerService:
             grouped_id=getattr(message, "grouped_id", None),
             media_items=media_items,
         )
+        if result.content_id and descriptor is not None:
+            try:
+                await self.intake_service.store_telegram_media(
+                    client=self.client, message=message, descriptor=descriptor
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Media storage pending for source message %s (%s)",
+                    message.id, type(exc).__name__,
+                )
         if result.accepted:
             logger.info("Imported source message %s; queued %s target jobs",
                         message.id, result.queued_jobs)
@@ -121,13 +131,34 @@ class MessageListenerService:
     async def _on_message_edited(self, event: events.MessageEdited.Event) -> None:
         if self.intake_service is None or event.message is None or event.chat_id is None:
             return
+        message = event.message
         updated = await self.intake_service.update_source_message(
             source_chat_id=int(event.chat_id),
-            message_id=int(event.message.id),
-            text=event.message.message,
+            message_id=int(message.id),
+            text=message.message,
         )
-        if updated:
-            logger.info("Synchronized edited source message %s", event.message.id)
+        descriptor = self._media_descriptor(message)
+        if descriptor is not None:
+            result = await self.intake_service.ingest(
+                source_chat_id=int(event.chat_id),
+                message_id=int(message.id),
+                text=message.message,
+                content_type=descriptor.media_type,
+                grouped_id=getattr(message, "grouped_id", None),
+                media_items=[descriptor],
+            )
+            if result.content_id:
+                try:
+                    await self.intake_service.store_telegram_media(
+                        client=self.client, message=message, descriptor=descriptor
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Edited media storage pending for source message %s (%s)",
+                        message.id, type(exc).__name__,
+                    )
+        if updated or descriptor is not None:
+            logger.info("Synchronized edited source message %s", message.id)
 
     async def _on_message_deleted(self, event: events.MessageDeleted.Event) -> None:
         if self.intake_service is None or event.chat_id is None:
