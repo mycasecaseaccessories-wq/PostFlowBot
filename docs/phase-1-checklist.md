@@ -33,8 +33,9 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 - [x] Add operator-audited recovery for uncertain jobs and stale processing locks.
 - [x] Block delivery unless the target channel posting permission is verified.
 - [x] Add worker tests for success, retry, uncertain delivery, stale-lock recovery, and permission gating.
-- [ ] Wire the worker to the real Telegram publisher and application lifecycle after the Telegram publishing adapter is implemented in the later integration phase.
-- [ ] Run and verify GitHub Actions CI for the latest worker implementation commits.
+- [x] Verify migration upgrade/downgrade round trips and preserve Phase 0 admin data in disposable SQLite databases.
+- [x] Verify latest worker implementation with GitHub Actions CI (Runs #67 and #68, both successful).
+
 
 ## External setup required before live Telegram integration
 - [!] Create a dedicated Telegram bot with @BotFather and configure its token as a server-side secret.
@@ -53,10 +54,17 @@ Status legend: [x] implemented and covered by repository tests; [ ] not yet impl
 
 ## Verification record
 - Previous baseline CI: Run #48 (`44257412695`) — Python CI / `test` job completed successfully before the worker implementation.
-- Latest worker implementation commits: `2f6584d895ce254c336dee26e7be2d4bde4fb7bd` and `e735d724922c1887cd9b98950362cb73064e1de2`; CI verification is pending.
+- Latest verified worker implementation commit: `cfb36be7cab16ad8cc57c0f12e4f3c283f74f240`. GitHub Actions Run #67 (`44261924134`, push) and Run #68 (`44261930171`, pull_request) both completed successfully.
 - Pull request: https://github.com/mycasecaseaccessories-wq/PostFlowBot/pull/1
 - Previous CI run: 43910019000 — 35 passed, 4 migration tests failed because SQLite does not support direct ALTER TABLE constraint creation.
 - Migration fix commit: 6ef9e01008c45aea8d216c5d40483b1205257d3c
-- Current CI status: the worker implementation has not yet been verified by a completed CI run. The last confirmed green run predates these worker changes.
+- Current CI status: latest worker implementation is green in both push and pull-request CI runs.
 - Verification environment: GitHub Actions, Python 3.11, SQLite test databases.
 - No production database migration or Telegram publishing was run.
+
+
+## Deferred to later Telegram integration and publishing phases
+- [ ] Connect the worker to the real Telegram Bot API publisher and application lifecycle.
+- [ ] Implement full media/album publishing and source-channel intake.
+- [ ] Configure private staging bot/channel credentials and run live end-to-end Telegram delivery.
+- [ ] Hosting, production secrets, and production deployment remain deferred until all six development phases are complete.
