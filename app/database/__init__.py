@@ -7,7 +7,7 @@ from .cms_models import (
 )
 from .automation_models import (
     ApprovalStatus, AuditEvent, ContentApproval, MemberRole, PublishAttempt,
-    PublishJob, PublishJobStatus, Schedule, ScheduleStatus, Workspace,
+    PublishJob, PublishJobStatus, PublishDeliveryReceipt, Schedule, ScheduleStatus, Workspace,
     WorkspaceMember,
 )
 from .repositories.channels import ChannelRepository
@@ -21,7 +21,7 @@ __all__ = [
     "Admin", "ApprovalStatus", "AuditEvent", "Category", "ChannelRepository",
     "Collection", "Content", "ContentApproval", "ContentMedia", "ContentStatus",
     "ContentOrigin", "ContentTag", "ContentType", "Base", "Database", "Media", "MediaType",
-    "MemberRole", "PublishAttempt", "PublishJob", "PublishJobStatus",
+    "MemberRole", "PublishAttempt", "PublishJob", "PublishJobStatus", "PublishDeliveryReceipt",
     "RotationMode", "Schedule", "ScheduleStatus", "RepostHistory", "RepostRule",
     "Tag", "SourceChannel", "SystemSetting", "TargetChannel", "Workspace",
     "WorkspaceMember", "RoutingRepository",
