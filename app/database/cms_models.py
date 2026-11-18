@@ -185,6 +185,7 @@ class Content(CmsTimestampMixin, SoftDeleteMixin, Base):
     )
     source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     caption_source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    formatting_entities: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         String(32), default=ContentStatus.DRAFT.value, nullable=False
     )
