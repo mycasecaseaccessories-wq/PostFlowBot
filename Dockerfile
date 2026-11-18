@@ -24,6 +24,4 @@ RUN mkdir -p /app/data/media /app/data/telethon \
 
 USER postflow
 
-EXPOSE 8080
-
 CMD ["sh", "-c", "alembic upgrade head && exec python main.py"]
