@@ -81,3 +81,82 @@ async def test_intake_does_not_queue_unverified_or_inactive_targets(tmp_path: Pa
     assert result.accepted is True
     assert result.queued_jobs == 0
     await database.close()
+
+
+@pytest.mark.asyncio
+async def test_route_delay_is_applied_to_publish_job(tmp_path: Path):
+    from datetime import UTC, datetime, timedelta
+
+    database = Database(settings_for(tmp_path / "delay.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500021, title="Source")
+        target = TargetChannel(
+            telegram_chat_id=-1001234500022, title="Target",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target])
+        await session.flush()
+        session.add(RepostRule(
+            source_channel_id=source.id, target_channel_id=target.id,
+            delay_seconds=120,
+        ))
+        await session.commit()
+        chat_id = source.telegram_chat_id
+
+    before = datetime.now(UTC)
+    result = await MessageIntakeService(database.session_factory).ingest(
+        source_chat_id=chat_id, message_id=99, text="Delayed post"
+    )
+    after = datetime.now(UTC)
+    assert result.queued_jobs == 1
+    async with database.session() as session:
+        job = await session.scalar(select(PublishJob))
+        assert before + timedelta(seconds=120) <= job.run_at
+        assert job.run_at <= after + timedelta(seconds=120)
+    await database.close()
+
+
+@pytest.mark.asyncio
+async def test_edit_updates_imported_content_and_delete_cancels_queued_jobs(tmp_path: Path):
+    from app.database.automation_models import PublishJobStatus
+    from app.database.cms_models import ContentStatus
+
+    database = Database(settings_for(tmp_path / "edit-delete.db"))
+    await database.initialize()
+    async with database.session() as session:
+        source = SourceChannel(telegram_chat_id=-1001234500031, title="Source")
+        target = TargetChannel(
+            telegram_chat_id=-1001234500032, title="Target",
+            posting_permission_status="verified",
+        )
+        session.add_all([source, target])
+        await session.flush()
+        session.add(RepostRule(source_channel_id=source.id, target_channel_id=target.id))
+        await session.commit()
+        chat_id = source.telegram_chat_id
+
+    intake = MessageIntakeService(database.session_factory)
+    created = await intake.ingest(
+        source_chat_id=chat_id, message_id=111, text="Original"
+    )
+    assert created.accepted
+    assert await intake.update_source_message(
+        source_chat_id=chat_id, message_id=111, text="Edited text"
+    )
+    async with database.session() as session:
+        content = await session.get(Content, created.content_id)
+        job = await session.scalar(select(PublishJob))
+        assert content.caption == "Edited text"
+        assert job.status == PublishJobStatus.QUEUED.value
+
+    assert await intake.delete_source_message(
+        source_chat_id=chat_id, message_id=111
+    )
+    async with database.session() as session:
+        content = await session.get(Content, created.content_id)
+        job = await session.scalar(select(PublishJob))
+        assert content.status == ContentStatus.ARCHIVED.value
+        assert content.is_archived is True
+        assert job.status == PublishJobStatus.CANCELLED.value
+    await database.close()
