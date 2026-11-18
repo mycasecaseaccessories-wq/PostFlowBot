@@ -8,10 +8,12 @@ from sqlalchemy import select
 
 from app.config.settings import load_settings
 from app.database import Admin, Content, PublishAttempt, PublishJob, TargetChannel
+from app.database.automation_models import PublishDeliveryReceipt
 from app.database.automation_models import PublishJobStatus
 from app.database.database import Database
 from app.services.publishing_worker import (
     PermanentPublishError,
+    PublishResult,
     PublishingWorker,
     RetryablePublishError,
     UncertainPublishError,
@@ -213,4 +215,30 @@ async def test_worker_does_not_send_to_disabled_target(tmp_path: Path):
     async with database.session() as session:
         job = await session.get(PublishJob, job_id)
         assert job.status == PublishJobStatus.FAILED.value
+    await database.close()
+
+
+@pytest.mark.asyncio
+async def test_worker_persists_all_album_message_receipts(tmp_path: Path):
+    database = Database(make_settings(tmp_path / "worker-album-receipts.db"))
+    await database.initialize()
+    job_id = await create_due_job(database)
+
+    class AlbumPublisher:
+        async def publish(self, payload):
+            return PublishResult((701, 702, 703))
+
+    worker = PublishingWorker(database.session_factory, AlbumPublisher())
+    assert await worker.run_once() is True
+    async with database.session() as session:
+        job = await session.get(PublishJob, job_id)
+        receipts = list((await session.scalars(
+            select(PublishDeliveryReceipt)
+            .where(PublishDeliveryReceipt.publish_job_id == job_id)
+            .order_by(PublishDeliveryReceipt.message_ordinal)
+        )).all())
+        assert job.status == PublishJobStatus.PUBLISHED.value
+        assert job.telegram_message_id == 701
+        assert [item.telegram_message_id for item in receipts] == [701, 702, 703]
+        assert [item.message_ordinal for item in receipts] == [0, 1, 2]
     await database.close()
