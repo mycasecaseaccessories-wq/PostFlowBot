@@ -76,12 +76,45 @@ async def test_fresh_database_upgrade_creates_expected_schema(tmp_path: Path) ->
                 lambda sync_connection: set(inspect(sync_connection).get_table_names())
             )
             revision = await connection.scalar(text("SELECT version_num FROM alembic_version"))
+            contents_columns = await connection.run_sync(
+                lambda sync_connection: {
+                    column["name"]
+                    for column in inspect(sync_connection).get_columns("contents")
+                }
+            )
+            target_columns = await connection.run_sync(
+                lambda sync_connection: {
+                    column["name"]
+                    for column in inspect(sync_connection).get_columns("target_channels")
+                }
+            )
+            contents_foreign_keys = await connection.run_sync(
+                lambda sync_connection: inspect(sync_connection).get_foreign_keys("contents")
+            )
+            contents_uniques = await connection.run_sync(
+                lambda sync_connection: inspect(sync_connection).get_unique_constraints("contents")
+            )
     finally:
         await engine.dispose()
 
     assert EXPECTED_TABLES <= tables
     assert CMS_TABLES <= tables
     assert revision == CMS_HEAD_REVISION
+    assert {"origin", "source_channel_id", "source_message_id"} <= contents_columns
+    assert {
+        "posting_permission_status",
+        "permission_checked_at",
+        "permission_error",
+    } <= target_columns
+    assert any(
+        fk["referred_table"] == "source_channels"
+        and fk["constrained_columns"] == ["source_channel_id"]
+        for fk in contents_foreign_keys
+    )
+    assert any(
+        constraint["column_names"] == ["source_channel_id", "source_message_id"]
+        for constraint in contents_uniques
+    )
 
 
 @pytest.mark.asyncio
