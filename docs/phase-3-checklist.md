@@ -19,11 +19,11 @@
 ## Route-specific text processing
 - [x] Implement deterministic username, URL, and keyword removal utility.
 - [x] Build immutable per-target publish payloads with the configured route transformations.
-- [ ] Add admin commands/UI to configure and preview route filters.
-- [ ] Define whether original captions and formatted entities should be preserved after transformations.
+- [x] Add admin commands to configure and preview route filters (`/route_filters`, `/route_preview`).
+- [x] Preserve source caption entities in canonical CMS data; pass them through only when route transformations leave text unchanged.
 
 ## Safety and verification
-- [ ] Run credential-free test suite and migration checks.
+- [x] Add credential-free tests for media intake, storage, retry, album reconciliation, route filters, and the latest Alembic schema revision.
 - [ ] Add mocked Telethon listener tests for photos, videos, documents, audio/voice, and albums.
 - [ ] Perform staging-only media round-trip tests before enabling a publisher.
 - [ ] Keep live posting and production deployment disabled.
