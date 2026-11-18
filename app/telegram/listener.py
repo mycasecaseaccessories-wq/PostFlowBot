@@ -62,7 +62,24 @@ class MessageListenerService:
             logger.debug("Ignored duplicate source message %s", message.id)
 
     async def _on_message_edited(self, event: events.MessageEdited.Event) -> None:
-        logger.debug("Source message edit observed: %s", getattr(event.message, "id", None))
+        if self.intake_service is None or event.message is None or event.chat_id is None:
+            return
+        updated = await self.intake_service.update_source_message(
+            source_chat_id=int(event.chat_id),
+            message_id=int(event.message.id),
+            text=event.message.message,
+        )
+        if updated:
+            logger.info("Synchronized edited source message %s", event.message.id)
 
     async def _on_message_deleted(self, event: events.MessageDeleted.Event) -> None:
-        logger.debug("Source message deletion observed: %s", event.deleted_ids)
+        if self.intake_service is None or event.chat_id is None:
+            logger.debug("Deleted message event has no channel context; skipping source sync")
+            return
+        for message_id in event.deleted_ids:
+            archived = await self.intake_service.delete_source_message(
+                source_chat_id=int(event.chat_id),
+                message_id=int(message_id),
+            )
+            if archived:
+                logger.info("Archived deleted source message %s", message_id)
