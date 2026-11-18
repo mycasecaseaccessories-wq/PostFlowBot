@@ -7,8 +7,8 @@
 - [x] Associate media with CMS content using ordered ContentMedia links.
 - [x] Group messages sharing Telegram grouped_id into one album content record.
 - [x] Preserve album caption and avoid creating one publish job per album item.
-- [ ] Download media bytes into durable object storage with checksums and retention policy.
-- [ ] Add retry/recovery for expired Telegram file references and inaccessible source media.
+- [x] Download media bytes and atomically persist them under a configured persistent filesystem volume.\n- [x] Persist storage backend/key, SHA-256 checksum, byte size, retry status, and attempt count in the CMS.\n- [ ] Add an S3-compatible object-storage adapter and retention/garbage-collection policy.
+- [x] Retry pending media downloads on listener startup by re-fetching the original source message.\n- [ ] Add scheduled retry/backoff and operator visibility for permanently inaccessible source media.
 - [ ] Add album completion/debounce guarantees for slow or unusually large groups.\n- [ ] Track every individual source message ID in an album so edits/deletions of non-first items can be reconciled.
 
 ## Route-specific text processing
@@ -19,7 +19,7 @@
 
 ## Safety and verification
 - [ ] Run credential-free test suite and migration checks.
-- [ ] Add mocked Telethon listener tests for photos, videos, documents, and albums.
+- [ ] Add mocked Telethon listener tests for photos, videos, documents, audio/voice, and albums.
 - [ ] Perform staging-only media round-trip tests before enabling a publisher.
 - [ ] Keep live posting and production deployment disabled.
 
