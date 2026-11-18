@@ -9,11 +9,11 @@
 - [x] Preserve album caption and avoid creating one publish job per album item.
 - [ ] Download media bytes into durable object storage with checksums and retention policy.
 - [ ] Add retry/recovery for expired Telegram file references and inaccessible source media.
-- [ ] Add album completion/debounce guarantees for slow or unusually large groups.
+- [ ] Add album completion/debounce guarantees for slow or unusually large groups.\n- [ ] Track every individual source message ID in an album so edits/deletions of non-first items can be reconciled.
 
 ## Route-specific text processing
 - [x] Implement deterministic username, URL, and keyword removal utility.
-- [ ] Wire transformed content snapshots into each queued publish payload.
+- [x] Build immutable per-target publish payloads with the configured route transformations.
 - [ ] Add admin commands/UI to configure and preview route filters.
 - [ ] Define whether original captions and formatted entities should be preserved after transformations.
 
