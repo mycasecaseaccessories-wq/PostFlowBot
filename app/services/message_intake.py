@@ -136,9 +136,14 @@ class MessageIntakeService:
                     await session.flush()
                 link = await session.get(ContentMedia, (content.id, media.id))
                 if link is None:
+                    current_order = await session.scalar(
+                        select(func.count(ContentMedia.media_id)).where(
+                            ContentMedia.content_id == content.id
+                        )
+                    )
                     session.add(ContentMedia(
                         content_id=content.id, media_id=media.id,
-                        display_order=int(await session.scalar(\n                            select(func.count(ContentMedia.media_id)).where(\n                                ContentMedia.content_id == content.id\n                            )\n                        ) or 0),
+                        display_order=int(current_order or 0),
                         album_group_key=album_key,
                     ))
                     attached += 1
@@ -186,11 +191,14 @@ class MessageIntakeService:
             row = (await session.execute(
                 select(Content, RepostRule)
                 .join(RepostRule, RepostRule.source_channel_id == Content.source_channel_id)
+                .join(TargetChannel, TargetChannel.id == RepostRule.target_channel_id)
                 .where(
                     Content.id == content_id,
                     Content.is_archived.is_(False),
                     RepostRule.target_channel_id == target_channel_id,
                     RepostRule.is_active.is_(True),
+                    TargetChannel.is_active.is_(True),
+                    TargetChannel.posting_permission_status == "verified",
                 )
             )).one_or_none()
             if row is None:
