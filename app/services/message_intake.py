@@ -61,9 +61,11 @@ class MessageIntakeService:
     def __init__(
         self, session_factory: async_sessionmaker[AsyncSession],
         media_storage: LocalMediaStorage | None = None,
+        media_retry_max_attempts: int = 5,
     ) -> None:
         self.session_factory = session_factory
         self.media_storage = media_storage
+        self.media_retry_max_attempts = max(1, int(media_retry_max_attempts))
 
     async def ingest(
         self, *, source_chat_id: int, message_id: int, text: str | None,
@@ -349,7 +351,11 @@ class MessageIntakeService:
             async with self.session_factory() as session:
                 media = await session.get(Media, media_id)
                 if media is not None:
-                    media.storage_status = "failed" if isinstance(exc, MediaTooLargeError) else "pending"
+                    media.storage_status = (
+                        "failed" if isinstance(exc, MediaTooLargeError)
+                        or media.storage_attempts >= self.media_retry_max_attempts
+                        else "pending"
+                    )
                     media.storage_error = f"{type(exc).__name__}: {exc}"[:1000]
                     await session.commit()
             raise
@@ -365,6 +371,7 @@ class MessageIntakeService:
                 .join(SourceChannel, SourceChannel.id == Content.source_channel_id)
                 .where(
                     Media.storage_status == "pending",
+                    Media.storage_attempts < self.media_retry_max_attempts,
                     Content.is_archived.is_(False),
                     ContentMedia.source_message_id.is_not(None),
                 )
