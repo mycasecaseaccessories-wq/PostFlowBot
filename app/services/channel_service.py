@@ -179,7 +179,10 @@ class TargetChannelService:
                 "username": resolved.username,
                 "title": resolved.title,
                 "channel_type": resolved.channel_type,
-                "publishing_permission_confirmed": resolved.publishing_permission_confirmed,
+                "publishing_permission_confirmed": None,
+                "posting_permission_status": "unknown",
+                "permission_checked_at": None,
+                "permission_error": "Target details refreshed; run /target_check to verify current posting rights.",
             },
             target.id,
         )
