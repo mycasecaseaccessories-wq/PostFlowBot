@@ -40,6 +40,8 @@ class RoutingService:
             raise ConflictError("Enable the source channel before creating a route.")
         if not target.is_active:
             raise ConflictError("Enable the target channel before creating a route.")
+        if target.posting_permission_status != "verified":
+            raise ConflictError("Verify target posting permission with /target_check before creating or enabling a route.")
 
     async def create_route(self, source_id: int, target_id: int, admin_id: int) -> RepostRule:
         await self.validate_route(source_id, target_id)
@@ -65,7 +67,8 @@ class RoutingService:
         return route
 
     async def enable_route(self, route_id: int, admin_id: int) -> RepostRule:
-        await self.get_route(route_id)
+        existing = await self.get_route(route_id)
+        await self.validate_route(existing.source_channel_id, existing.target_channel_id)
         route = await self.repository.save({"is_active": True}, route_id)
         logger.info("Admin %s enabled route %s", admin_id, route_id)
         return route
