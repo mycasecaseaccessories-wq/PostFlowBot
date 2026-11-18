@@ -13,6 +13,7 @@ from app.database.cms_models import (
     Content, ContentMedia, ContentOrigin, ContentStatus, ContentType, Media,
 )
 from app.database.models import RepostRule, SourceChannel, TargetChannel
+from app.services.content_transform import transform_text
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +27,14 @@ class MediaDescriptor:
     width: int | None = None
     height: int | None = None
     duration: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PublishPayload:
+    content_id: str
+    content_type: str
+    text: str
+    media: tuple[MediaDescriptor, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +172,59 @@ class MessageIntakeService:
                 queued += 1
             await session.commit()
             return IntakeResult(True, content_id=content.id, queued_jobs=queued)
+
+
+    async def build_publish_payload(
+        self, *, content_id: str, target_channel_id: int,
+    ) -> PublishPayload | None:
+        """Build a route-specific, transformed payload without mutating source content.
+
+        The future publisher consumes this method so each target receives its own
+        text and ordered media list while the canonical CMS content stays intact.
+        """
+        async with self.session_factory() as session:
+            row = (await session.execute(
+                select(Content, RepostRule)
+                .join(RepostRule, RepostRule.source_channel_id == Content.source_channel_id)
+                .where(
+                    Content.id == content_id,
+                    Content.is_archived.is_(False),
+                    RepostRule.target_channel_id == target_channel_id,
+                    RepostRule.is_active.is_(True),
+                )
+            )).one_or_none()
+            if row is None:
+                return None
+            content, route = row
+            transformed = transform_text(
+                content.caption or content.body_text,
+                remove_usernames=route.remove_usernames,
+                remove_links=route.remove_links,
+                remove_keywords=route.remove_keywords,
+            )
+            media_rows = list((await session.scalars(
+                select(Media)
+                .join(ContentMedia, ContentMedia.media_id == Media.id)
+                .where(ContentMedia.content_id == content.id, Media.is_active.is_(True))
+                .order_by(ContentMedia.display_order.asc())
+            )).all())
+            media = tuple(MediaDescriptor(
+                telegram_file_id=item.telegram_file_id,
+                telegram_file_unique_id=item.telegram_file_unique_id,
+                media_type=item.media_type,
+                original_file_name=item.original_file_name,
+                mime_type=item.mime_type,
+                file_size=item.file_size,
+                width=item.width,
+                height=item.height,
+                duration=item.duration,
+            ) for item in media_rows)
+            return PublishPayload(
+                content_id=content.id,
+                content_type=content.content_type,
+                text=transformed,
+                media=media,
+            )
 
     async def update_source_message(self, *, source_chat_id: int,
                                     message_id: int, text: str | None) -> bool:
