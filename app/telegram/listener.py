@@ -34,6 +34,15 @@ class MessageListenerService:
         self.client.add_event_handler(self._on_message_deleted, events.MessageDeleted)
         self.running = True
         self.status_service.listener_running = True
+        if self.intake_service is not None:
+            try:
+                recovered = await self.intake_service.retry_pending_media(
+                    client=self.client, limit=20
+                )
+                if recovered:
+                    logger.info("Recovered %s pending Telegram media objects", recovered)
+            except Exception as exc:
+                logger.warning("Pending media recovery skipped (%s)", type(exc).__name__)
         logger.info("Message listener started")
 
     async def stop(self) -> None:
