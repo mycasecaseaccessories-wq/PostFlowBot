@@ -76,6 +76,13 @@ class TargetChannel(TimestampMixin, Base):
     publishing_permission_confirmed: Mapped[bool | None] = mapped_column(
         Boolean, nullable=True
     )
+    posting_permission_status: Mapped[str] = mapped_column(
+        String(32), default="unknown", nullable=False
+    )
+    permission_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    permission_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     repost_rules: Mapped[list["RepostRule"]] = relationship(
         back_populates="target_channel", cascade="all, delete-orphan"

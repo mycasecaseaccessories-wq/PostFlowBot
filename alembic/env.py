@@ -10,7 +10,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.database import cms_models  # noqa: F401  # register Phase 1.2 tables
+from app.database import automation_models, cms_models  # noqa: F401  # register all persisted models
 from app.database.models import Base
 
 config = context.config

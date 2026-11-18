@@ -48,6 +48,12 @@ class ContentType(StrEnum):
     QUIZ = "quiz"
 
 
+class ContentOrigin(StrEnum):
+    MANUAL = "manual"
+    AI = "ai"
+    CHANNEL_IMPORT = "channel_import"
+
+
 class ContentStatus(StrEnum):
     DRAFT = "draft"
     IN_REVIEW = "in_review"
@@ -148,6 +154,8 @@ class Content(CmsTimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "contents"
     __table_args__ = (
         CheckConstraint("priority >= 0", name="ck_contents_priority_nonnegative"),
+        UniqueConstraint("source_channel_id", "source_message_id", name="uq_contents_source_message"),
+        Index("ix_contents_source_origin", "origin", "source_channel_id"),
         Index("ix_contents_status_type", "status", "content_type"),
         Index("ix_contents_category_collection", "category_id", "collection_id"),
         Index("ix_contents_created_at", "created_at"),
@@ -169,6 +177,13 @@ class Content(CmsTimestampMixin, SoftDeleteMixin, Base):
     content_type: Mapped[str] = mapped_column(
         String(32), default=ContentType.TEXT.value, nullable=False
     )
+    origin: Mapped[str] = mapped_column(
+        String(32), default=ContentOrigin.MANUAL.value, nullable=False
+    )
+    source_channel_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("source_channels.id", ondelete="SET NULL"), nullable=True
+    )
+    source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     status: Mapped[str] = mapped_column(
         String(32), default=ContentStatus.DRAFT.value, nullable=False
     )
@@ -296,6 +311,7 @@ __all__ = [
     "Collection",
     "Content",
     "ContentMedia",
+    "ContentOrigin",
     "ContentStatus",
     "ContentTag",
     "ContentType",
