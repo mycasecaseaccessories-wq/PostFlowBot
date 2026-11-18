@@ -26,6 +26,8 @@ class Settings:
     log_level: str = "INFO"
     timezone: str = "UTC"
     database_schema_mode: str = "bootstrap"
+    media_storage_dir: str = "./data/media"
+    media_max_bytes: int = 52428800
 
     @property
     def database_path(self) -> Path | None:
@@ -121,4 +123,6 @@ def load_settings(
         database_schema_mode=_parse_database_schema_mode(
             source.get("DATABASE_SCHEMA_MODE", "bootstrap")
         ),
+        media_storage_dir=source.get("MEDIA_STORAGE_DIR", "./data/media").strip() or "./data/media",
+        media_max_bytes=max(1, int(source.get("MEDIA_MAX_BYTES", "52428800"))),
     )
