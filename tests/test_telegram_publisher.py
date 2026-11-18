@@ -108,3 +108,21 @@ async def test_publisher_refuses_unauthorized_client(tmp_path: Path):
     with pytest.raises(PermanentPublishError, match="authorized"):
         await publisher.publish(payload)
     assert client.calls == []
+
+
+@pytest.mark.asyncio
+async def test_publisher_rebuilds_preserved_telegram_formatting_entities(tmp_path: Path):
+    from telethon.tl.types import MessageEntityBold
+
+    client = FakeClient()
+    publisher = TelegramPublisher(client, FakeStorage(tmp_path))
+    payload = SimpleNamespace(
+        destination_chat_id=-100123,
+        text="Bold",
+        media=(),
+        formatting_entities=({"_": "MessageEntityBold", "offset": 0, "length": 4},),
+    )
+    assert await publisher.publish(payload) == 101
+    entities = client.calls[0][3]["formatting_entities"]
+    assert len(entities) == 1
+    assert isinstance(entities[0], MessageEntityBold)
