@@ -82,3 +82,54 @@ class MessageIntakeService:
                 queued += 1
             await session.commit()
             return IntakeResult(True, content_id=content.id, queued_jobs=queued)
+
+    async def update_source_message(self, *, source_chat_id: int,
+                                    message_id: int, text: str | None) -> bool:
+        """Synchronize an edited source caption/text without creating new jobs."""
+        body = (text or "").strip()
+        async with self.session_factory() as session:
+            source = await session.scalar(select(SourceChannel).where(
+                SourceChannel.telegram_chat_id == source_chat_id))
+            if source is None:
+                return False
+            content = await session.scalar(select(Content).where(
+                Content.source_channel_id == source.id,
+                Content.source_message_id == message_id))
+            if content is None or content.is_archived:
+                return False
+            content.title = body[:255] or None
+            content.caption = body or None
+            content.body_text = body or None
+            content.updated_at = datetime.now(UTC)
+            await session.commit()
+            return True
+
+    async def delete_source_message(self, *, source_chat_id: int,
+                                    message_id: int) -> bool:
+        """Archive deleted source content and cancel jobs not yet claimed."""
+        async with self.session_factory() as session:
+            source = await session.scalar(select(SourceChannel).where(
+                SourceChannel.telegram_chat_id == source_chat_id))
+            if source is None:
+                return False
+            content = await session.scalar(select(Content).where(
+                Content.source_channel_id == source.id,
+                Content.source_message_id == message_id))
+            if content is None:
+                return False
+            now = datetime.now(UTC)
+            content.is_active = False
+            content.is_archived = True
+            content.archived_at = now
+            content.deleted_at = now
+            content.status = ContentStatus.ARCHIVED.value
+            jobs = list((await session.scalars(select(PublishJob).where(
+                PublishJob.content_id == content.id,
+                PublishJob.status == PublishJobStatus.QUEUED.value,
+            ))).all())
+            for job in jobs:
+                job.status = PublishJobStatus.CANCELLED.value
+                job.last_error = "Source message was deleted before publication."
+                job.updated_at = now
+            await session.commit()
+            return True
