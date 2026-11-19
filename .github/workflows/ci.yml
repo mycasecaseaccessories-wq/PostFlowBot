@@ -22,3 +22,12 @@ jobs:
         run: pytest -q
       - name: Build runtime container (no push)
         run: docker build --tag postflow-bot:ci .
+      - name: Smoke-test container user and application imports
+        run: |
+          docker run --rm --entrypoint python postflow-bot:ci -c "import os; assert os.getuid() != 0, 'container must not run as root'; import app.core.lifecycle; print('non-root runtime and application imports OK')"
+      - name: Smoke-test Alembic migrations on disposable volume
+        run: |
+          docker volume create postflow-ci-data
+          docker run --rm -v postflow-ci-data:/app/data -e DATABASE_URL=sqlite+aiosqlite:////app/data/ci.db --entrypoint alembic postflow-bot:ci upgrade head
+          docker run --rm -v postflow-ci-data:/app/data -e DATABASE_URL=sqlite+aiosqlite:////app/data/ci.db --entrypoint alembic postflow-bot:ci current
+          docker volume rm postflow-ci-data
