@@ -75,7 +75,7 @@ After a future authorized deployment, verify:
 - [x] Runtime-only dependency manifest and non-root container definition added.
 - [x] Container build context excludes credentials, local databases, sessions, and local application data.
 - [x] Deployment, secret handling, persistent storage, backup, and recovery procedures documented.
-- [ ] Build the image in CI and verify it starts with a disposable test database.
+- [x] Build the image in CI, verify the runtime user is non-root, import the application, and run Alembic upgrade/current against a disposable persistent Docker volume.
 - [ ] Add and verify a durable backup/restore rehearsal in the target host.
 - [ ] Complete authorized Telegram staging send/receipt verification (Phase 4 pending item).
 - [ ] Complete target-host security, persistence, restart, and migration checks.
